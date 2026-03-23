@@ -140,9 +140,6 @@ export default function ReportsPage() {
             <Link href="/reports/new">
               <Button>新建 Report</Button>
             </Link>
-            <Link href="/reports/upload">
-              <Button type="primary">上传 Excel</Button>
-            </Link>
             <Button onClick={() => reportsQuery.refetch()} loading={reportsQuery.isFetching}>
               刷新
             </Button>

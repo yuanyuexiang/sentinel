@@ -39,6 +39,9 @@ export default function ReportDetailPage() {
           title="报告详情"
           extra={
             <Space>
+              <Link href="/reports">
+                <Button>返回列表</Button>
+              </Link>
               <Link href={`/reports/${reportKey}/edit`}>
                 <Button type="dashed">内容编辑</Button>
               </Link>
@@ -174,9 +177,12 @@ export default function ReportDetailPage() {
                                     <Table
                                       size="small"
                                       pagination={false}
-                                      rowKey={(_, index) => `${chart.chart_id}-${index}`}
+                                      rowKey="__rowKey"
                                       columns={columns}
-                                      dataSource={chart.table_data?.rows || []}
+                                      dataSource={(chart.table_data?.rows || []).map((row, index) => ({
+                                        ...row,
+                                        __rowKey: `${chart.chart_id}-${index}`,
+                                      }))}
                                     />
                                   ) : null}
 
