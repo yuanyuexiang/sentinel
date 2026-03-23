@@ -83,9 +83,31 @@ async function post<T, TBody = unknown>(
   return unwrapEnvelope(response.data);
 }
 
+async function patch<T, TBody = unknown>(
+  url: string,
+  body?: TBody,
+  config?: AxiosRequestConfig,
+): Promise<T> {
+  const response = await client.patch<ApiEnvelope<T>>(url, body, {
+    ...config,
+    baseURL: getApiBaseUrl(),
+  });
+  return unwrapEnvelope(response.data);
+}
+
+async function del<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+  const response = await client.delete<ApiEnvelope<T>>(url, {
+    ...config,
+    baseURL: getApiBaseUrl(),
+  });
+  return unwrapEnvelope(response.data);
+}
+
 export const http = {
   get,
   post,
+  patch,
+  delete: del,
   toErrorMessage,
 };
 

@@ -1,15 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
-import { Button, Card, Descriptions, Empty, Input, List, Modal, Space, Typography, message } from "antd";
-import { useAssembleMutation, usePublishMutation, useReportDetailQuery } from "@/features/reports/hooks";
+import { Button, Card, Descriptions, Empty, Input, Modal, Space, Table, Typography, message } from "antd";
+import ReactECharts from "echarts-for-react";
+import {
+  useAssembleMutation,
+  useDeleteReportMutation,
+  usePublishMutation,
+  useReportDetailQuery,
+} from "@/features/reports/hooks";
 import { http } from "@/lib/http";
 
 export default function ReportDetailPage() {
   const { reportKey } = useParams<{ reportKey: string }>();
+  const router = useRouter();
   const [messageApi, contextHolder] = message.useMessage();
+  const [modalApi, modalContextHolder] = Modal.useModal();
   const [publishOpen, setPublishOpen] = useState(false);
   const [comment, setComment] = useState("");
   const [latestSnapshotId, setLatestSnapshotId] = useState<number | null>(null);
@@ -17,17 +25,49 @@ export default function ReportDetailPage() {
   const detailQuery = useReportDetailQuery(reportKey);
   const assembleMutation = useAssembleMutation();
   const publishMutation = usePublishMutation();
+  const deleteMutation = useDeleteReportMutation();
 
   const detail = detailQuery.data;
+  const orderedSections = [...(detail?.sections || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
 
   return (
     <>
       {contextHolder}
-      <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+      {modalContextHolder}
+      <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
         <Card
           title="报告详情"
           extra={
             <Space>
+              <Link href={`/reports/${reportKey}/edit`}>
+                <Button type="dashed">内容编辑</Button>
+              </Link>
+              <Button
+                danger
+                onClick={() => {
+                  modalApi.confirm({
+                    title: "确认删除报告",
+                    content: `删除 ${reportKey} 后不可恢复，确定继续吗？`,
+                    okText: "确认删除",
+                    cancelText: "取消",
+                    okButtonProps: {
+                      danger: true,
+                      loading: deleteMutation.isPending,
+                    },
+                    onOk: async () => {
+                      try {
+                        await deleteMutation.mutateAsync(reportKey);
+                        messageApi.success("删除成功");
+                        router.push("/reports");
+                      } catch (error) {
+                        messageApi.error(`删除失败：${http.toErrorMessage(error)}`);
+                      }
+                    },
+                  });
+                }}
+              >
+                删除
+              </Button>
               <Button
                 loading={assembleMutation.isPending}
                 onClick={async () => {
@@ -65,31 +105,97 @@ export default function ReportDetailPage() {
           )}
         </Card>
 
-        <Card title="Sections">
-          {detail?.sections?.length ? (
-            <List
-              itemLayout="horizontal"
-              dataSource={detail.sections}
-              renderItem={(section) => (
-                <List.Item
-                  actions={[
-                    <Link key="view" href={`/reports/${reportKey}/sections/${section.section_key}`}>
-                      查看 Section
-                    </Link>,
-                  ]}
-                >
-                  <List.Item.Meta
+        <Card title="报告内容预览（整页）">
+          {orderedSections.length ? (
+            <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
+              {orderedSections.map((section) => {
+                const charts = section.content_items?.charts || [];
+
+                return (
+                  <Card
+                    key={section.section_key}
+                    id={`section-${section.section_key}`}
+                    type="inner"
                     title={
                       <Space>
                         <Typography.Text strong>{section.title}</Typography.Text>
                         <Typography.Text type="secondary">({section.section_key})</Typography.Text>
+                        <Typography.Text type="secondary">order: {section.order || 0}</Typography.Text>
                       </Space>
                     }
-                    description={`charts: ${section.content_items?.charts?.length || 0}`}
-                  />
-                </List.Item>
-              )}
-            />
+                  >
+                    <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
+                      <Typography.Text type="secondary">
+                        subtitle: {section.subtitle || "-"}
+                      </Typography.Text>
+
+                      {charts.length ? (
+                        <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
+                          {charts.map((chart) => {
+                            const columns =
+                              chart.table_data?.columns?.map((column) => ({
+                                title: column.title,
+                                dataIndex: column.key,
+                                key: column.key,
+                              })) || [];
+
+                            return (
+                              <Card
+                                key={chart.chart_id}
+                                type="inner"
+                                title={
+                                  <Space>
+                                    <Typography.Text strong>{chart.title}</Typography.Text>
+                                    <Typography.Text type="secondary">({chart.chart_id})</Typography.Text>
+                                    <Typography.Text type="secondary">{chart.chart_type}</Typography.Text>
+                                  </Space>
+                                }
+                              >
+                                <Space orientation="vertical" style={{ width: "100%" }}>
+                                  <Space size={[8, 8]} wrap>
+                                    {typeof chart.meta?.formatter === "string" ? (
+                                      <Typography.Text type="secondary">formatter: {chart.meta.formatter}</Typography.Text>
+                                    ) : null}
+                                    {typeof chart.meta?.metric_name === "string" ? (
+                                      <Typography.Text type="secondary">metric: {chart.meta.metric_name}</Typography.Text>
+                                    ) : null}
+                                  </Space>
+
+                                  {chart.chart_type !== "table" && chart.echarts ? (
+                                    <ReactECharts
+                                      option={chart.echarts}
+                                      notMerge
+                                      lazyUpdate
+                                      style={{ width: "100%", height: 380 }}
+                                    />
+                                  ) : null}
+
+                                  {chart.chart_type === "table" ? (
+                                    <Table
+                                      size="small"
+                                      pagination={false}
+                                      rowKey={(_, index) => `${chart.chart_id}-${index}`}
+                                      columns={columns}
+                                      dataSource={chart.table_data?.rows || []}
+                                    />
+                                  ) : null}
+
+                                  {chart.chart_type !== "table" && !chart.echarts ? (
+                                    <Empty description="该图表无 echarts option 数据" />
+                                  ) : null}
+                                </Space>
+                              </Card>
+                            );
+                          })}
+                        </Space>
+                      ) : (
+                        <Empty description="该 section 暂无 charts" />
+                      )}
+                    </Space>
+                  </Card>
+                );
+              })}
+            </Space>
           ) : (
             <Empty description="该报告暂无 section" />
           )}
@@ -126,7 +232,7 @@ export default function ReportDetailPage() {
           }
         }}
       >
-        <Space direction="vertical" style={{ width: "100%" }}>
+        <Space orientation="vertical" style={{ width: "100%" }}>
           <Typography.Text>
             snapshot_id: <strong>{latestSnapshotId || "-"}</strong>
           </Typography.Text>

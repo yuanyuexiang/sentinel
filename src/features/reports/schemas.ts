@@ -75,3 +75,10 @@ export const reportDetailSchema = z.object({
   published_version: z.number(),
   sections: z.array(reportSectionSchema),
 });
+
+export const reportFormSchema = z.object({
+  report_key: z.string().trim().min(1, "report_key 不能为空").optional(),
+  name: z.string().trim().min(1, "name 不能为空"),
+  type: z.string().trim().min(1, "type 不能为空"),
+  status: z.string().trim().min(1, "status 不能为空"),
+});

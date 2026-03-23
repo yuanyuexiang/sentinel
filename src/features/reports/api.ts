@@ -10,10 +10,12 @@ import {
 } from "@/features/reports/schemas";
 import type {
   AssembleResult,
+  CreateReportInput,
   PublishResult,
   ReportDetail,
   ReportListItem,
   ReportSection,
+  UpdateReportInput,
   UploadExcelResult,
 } from "@/features/reports/types";
 
@@ -87,15 +89,7 @@ export async function getReportDetail(reportKey: string): Promise<ReportDetail> 
 
   const rawDetail: Partial<ReportDetail> = payloadObject.payload ?? (payload as Partial<ReportDetail>);
 
-  return reportDetailSchema.parse({
-    id: rawDetail.id,
-    report_key: rawDetail.report_key || reportKey,
-    name: rawDetail.name || reportKey,
-    type: rawDetail.type || "unknown",
-    status: rawDetail.status || "draft",
-    published_version: rawDetail.published_version ?? 0,
-    sections: rawDetail.sections || [],
-  });
+  return normalizeReportDetail(rawDetail, reportKey);
 }
 
 export async function getSectionDetail(reportKey: string, sectionKey: string): Promise<ReportSection> {
@@ -118,4 +112,72 @@ export async function getSectionDetail(reportKey: string, sectionKey: string): P
       title: sectionKey,
     },
   );
+}
+
+export async function createReport(input: CreateReportInput): Promise<ReportDetail> {
+  const payload = await http.post<
+    | ReportDetail
+    | {
+        payload?: Partial<ReportDetail>;
+      },
+    CreateReportInput
+  >("/v1/reports", {
+    ...input,
+    sections: input.sections || [],
+  });
+
+  const payloadObject = payload as {
+    payload?: Partial<ReportDetail>;
+  };
+
+  const rawDetail: Partial<ReportDetail> = payloadObject.payload ?? (payload as Partial<ReportDetail>);
+
+  return normalizeReportDetail(rawDetail, input.report_key);
+}
+
+export async function updateReport(reportKey: string, input: UpdateReportInput): Promise<ReportDetail> {
+  const payload = await http.patch<
+    | ReportDetail
+    | {
+        payload?: Partial<ReportDetail>;
+      },
+    UpdateReportInput
+  >(`/v1/reports/${reportKey}`, input);
+
+  const payloadObject = payload as {
+    payload?: Partial<ReportDetail>;
+  };
+
+  const rawDetail: Partial<ReportDetail> = payloadObject.payload ?? (payload as Partial<ReportDetail>);
+
+  return normalizeReportDetail(rawDetail, reportKey);
+}
+
+export async function deleteReport(reportKey: string): Promise<{ report_key: string }> {
+  const payload = await http.delete<
+    | {
+        report_key?: string;
+      }
+    | string
+  >(`/v1/reports/${reportKey}`);
+
+  if (typeof payload === "string") {
+    return { report_key: payload };
+  }
+
+  return {
+    report_key: payload.report_key || reportKey,
+  };
+}
+
+function normalizeReportDetail(rawDetail: Partial<ReportDetail>, fallbackReportKey: string): ReportDetail {
+  return reportDetailSchema.parse({
+    id: rawDetail.id,
+    report_key: rawDetail.report_key || fallbackReportKey,
+    name: rawDetail.name || fallbackReportKey,
+    type: rawDetail.type || "unknown",
+    status: rawDetail.status || "draft",
+    published_version: rawDetail.published_version ?? 0,
+    sections: rawDetail.sections || [],
+  });
 }

@@ -13,6 +13,7 @@
   3. 触发发布
   4. 查看 report 列表与详情
   5. 查看 section 级内容
+  6. report 级增删改查（Create/Update/Delete/Get）
 
 ## 2. 建议技术栈
 
@@ -25,8 +26,31 @@
 
 ## 3. 目录建议
 
-- 最新版本的nextjs
-- 最佳实践的目录结构
+```txt
+src/
+  app/
+    (admin)/
+      reports/
+        page.tsx                  # 报告列表
+        [reportKey]/
+          page.tsx                # 报告详情
+          sections/[sectionKey]/
+            page.tsx              # section 详情
+        upload/page.tsx           # 上传页
+  features/reports/
+    api.ts                        # report 相关 API 调用
+    hooks.ts                      # React Query hooks
+    types.ts                      # DTO 与领域类型
+    utils.ts                      # 响应转换工具
+    components/
+      report-list-table.tsx
+      report-actions.tsx
+      upload-form.tsx
+      publish-dialog.tsx
+  lib/
+    http.ts                       # axios/fetch 封装
+    env.ts                        # 环境变量读取
+```
 
 ## 4. 环境变量与网关
 
@@ -125,6 +149,19 @@ NEXT_PUBLIC_API_PREFIX=/consultant/api
 - table/line 的数据预览
 
 ## 7. 核心动作实现
+
+### 7.0 Report CRUD（管理端）
+
+- 新增：`POST /v1/reports`
+- 修改：`PATCH /v1/reports/{report_key}`
+- 删除：`DELETE /v1/reports/{report_key}`
+- 查询：`GET /v1/reports`、`GET /v1/reports/{report_key}`
+
+建议：
+
+1. 新增和修改成功后刷新列表缓存。
+2. 删除前弹二次确认，并提示不可恢复风险。
+3. 删除成功后主动跳转回列表页。
 
 ### 7.1 组装动作
 

@@ -1,12 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   assembleReport,
+  createReport,
+  deleteReport,
   getReportDetail,
   getReports,
   getSectionDetail,
   publishReport,
+  updateReport,
   uploadExcel,
 } from "@/features/reports/api";
+import type { CreateReportInput, UpdateReportInput } from "@/features/reports/types";
 
 export const reportKeys = {
   all: ["reports"] as const,
@@ -70,6 +74,43 @@ export function usePublishMutation() {
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: reportKeys.list() });
       void queryClient.invalidateQueries({ queryKey: reportKeys.detail(data.report_key) });
+    },
+  });
+}
+
+export function useCreateReportMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: CreateReportInput) => createReport(input),
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: reportKeys.list() });
+      queryClient.setQueryData(reportKeys.detail(data.report_key), data);
+    },
+  });
+}
+
+export function useUpdateReportMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: { reportKey: string; payload: UpdateReportInput }) =>
+      updateReport(input.reportKey, input.payload),
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: reportKeys.list() });
+      queryClient.setQueryData(reportKeys.detail(data.report_key), data);
+    },
+  });
+}
+
+export function useDeleteReportMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (reportKey: string) => deleteReport(reportKey),
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: reportKeys.list() });
+      queryClient.removeQueries({ queryKey: reportKeys.detail(data.report_key) });
     },
   });
 }

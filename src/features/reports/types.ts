@@ -58,3 +58,18 @@ export type ReportDetail = {
   published_version: number;
   sections: ReportSection[];
 };
+
+export type CreateReportInput = {
+  report_key: string;
+  name: string;
+  type: string;
+  status: string;
+  sections?: ReportSection[];
+};
+
+export type UpdateReportInput = {
+  name?: string;
+  type?: string;
+  status?: string;
+  sections?: ReportSection[];
+};

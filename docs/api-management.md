@@ -147,16 +147,55 @@ curl "http://127.0.0.1:8000/consultant/api/v1/reports/data-analytics"
 curl "http://127.0.0.1:8000/consultant/api/v1/reports/data-analytics/sections/origination_trends"
 ```
 
-## 6. Recommended Call Sequence
+## 6. Report CRUD APIs
+
+### 6.1 Create Report
+
+- Endpoint: `POST /v1/reports`
+
+```bash
+curl -X POST "http://127.0.0.1:8000/consultant/api/v1/reports" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "report_key": "crud-demo",
+    "name": "CRUD Demo",
+    "type": "analytics",
+    "status": "draft",
+    "sections": []
+  }'
+```
+
+### 6.2 Update Report
+
+- Endpoint: `PATCH /v1/reports/{report_key}`
+
+```bash
+curl -X PATCH "http://127.0.0.1:8000/consultant/api/v1/reports/crud-demo" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "CRUD Demo Updated",
+    "status": "published"
+  }'
+```
+
+### 6.3 Delete Report
+
+- Endpoint: `DELETE /v1/reports/{report_key}`
+
+```bash
+curl -X DELETE "http://127.0.0.1:8000/consultant/api/v1/reports/crud-demo"
+```
+
+## 7. Recommended Call Sequence
 
 1. Upload Excel
 2. Assemble report
 3. Publish snapshot
 4. Query report/section for frontend rendering
 
-## 7. Common Error Cases
+## 8. Common Error Cases
 
-### 7.1 Wrong File Type
+### 8.1 Wrong File Type
 
 - Condition: upload non-`.xlsx`
 - Example:
@@ -173,7 +212,7 @@ curl "http://127.0.0.1:8000/consultant/api/v1/reports/data-analytics/sections/or
 }
 ```
 
-### 7.2 Parsed Data Missing
+### 8.2 Parsed Data Missing
 
 - Condition: call assemble before upload
 - Example:
@@ -190,7 +229,7 @@ curl "http://127.0.0.1:8000/consultant/api/v1/reports/data-analytics/sections/or
 }
 ```
 
-### 7.3 Snapshot Not Found
+### 8.3 Snapshot Not Found
 
 - Condition: publish with wrong `snapshot_id`
 - Example:
