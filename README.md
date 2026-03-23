@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Report 管理端（Next.js）
 
-## Getting Started
+基于 Next.js 16 + TypeScript 的 Report 管理端，实现以下流程：
 
-First, run the development server:
+1. 上传 Excel
+2. 触发组装（Assemble）
+3. 触发发布（Publish）
+4. 查看报告列表与详情
+5. 查看 section 级内容
+
+## 1. 环境准备
+
+复制环境变量模板：
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+默认值：
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
+NEXT_PUBLIC_API_PREFIX=/consultant/api
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 2. 启动项目
 
-## Learn More
+```bash
+npm install
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+访问 `http://localhost:3000`。
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 3. 主要页面
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. `/reports`：报告列表，支持组装和发布
+2. `/reports/upload`：上传 Excel（.xlsx）
+3. `/reports/[reportKey]`：报告详情与 section 列表
+4. `/reports/[reportKey]/sections/[sectionKey]`：section 详情与图表预览
 
-## Deploy on Vercel
+## 4. 技术栈
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Next.js App Router + TypeScript
+2. Ant Design
+3. TanStack Query
+4. React Hook Form + Zod
+5. axios
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 5. 验证命令
+
+```bash
+npm run lint
+npm run build
+```
+
+当前版本已通过 lint 与 build 验证。
