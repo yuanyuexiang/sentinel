@@ -2,13 +2,10 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
-import { Button, Card, Descriptions, Empty, Input, Modal, Space, Table, Typography, message } from "antd";
+import { Button, Card, Descriptions, Empty, Modal, Space, Table, Typography, message } from "antd";
 import ReactECharts from "echarts-for-react";
 import {
-  useAssembleMutation,
   useDeleteReportMutation,
-  usePublishMutation,
   useReportDetailQuery,
 } from "@/features/reports/hooks";
 import { http } from "@/lib/http";
@@ -18,13 +15,8 @@ export default function ReportDetailPage() {
   const router = useRouter();
   const [messageApi, contextHolder] = message.useMessage();
   const [modalApi, modalContextHolder] = Modal.useModal();
-  const [publishOpen, setPublishOpen] = useState(false);
-  const [comment, setComment] = useState("");
-  const [latestSnapshotId, setLatestSnapshotId] = useState<number | null>(null);
 
   const detailQuery = useReportDetailQuery(reportKey);
-  const assembleMutation = useAssembleMutation();
-  const publishMutation = usePublishMutation();
   const deleteMutation = useDeleteReportMutation();
 
   const detail = detailQuery.data;
@@ -71,23 +63,6 @@ export default function ReportDetailPage() {
               >
                 删除
               </Button>
-              <Button
-                loading={assembleMutation.isPending}
-                onClick={async () => {
-                  try {
-                    const result = await assembleMutation.mutateAsync(reportKey);
-                    setLatestSnapshotId(result.snapshot_id);
-                    messageApi.success(`组装成功，snapshot_id=${result.snapshot_id}`);
-                  } catch (error) {
-                    messageApi.error(`组装失败：${http.toErrorMessage(error)}`);
-                  }
-                }}
-              >
-                Assemble
-              </Button>
-              <Button type="primary" disabled={!latestSnapshotId} onClick={() => setPublishOpen(true)}>
-                Publish
-              </Button>
             </Space>
           }
         >
@@ -100,8 +75,8 @@ export default function ReportDetailPage() {
               <Descriptions.Item label="name">{detail.name}</Descriptions.Item>
               <Descriptions.Item label="type">{detail.type}</Descriptions.Item>
               <Descriptions.Item label="status">{detail.status}</Descriptions.Item>
-              <Descriptions.Item label="published_version">{detail.published_version}</Descriptions.Item>
-              <Descriptions.Item label="latest_snapshot_id">{latestSnapshotId || "-"}</Descriptions.Item>
+              <Descriptions.Item label="updated_at">{detail.updated_at || "-"}</Descriptions.Item>
+              <Descriptions.Item label="published_version">{detail.published_version ?? "-"}</Descriptions.Item>
             </Descriptions>
           ) : (
             <Empty description="暂无数据" />
@@ -131,6 +106,9 @@ export default function ReportDetailPage() {
                       <Typography.Text type="secondary">
                         subtitle: {section.subtitle || "-"}
                       </Typography.Text>
+                      <Typography.Paragraph style={{ margin: 0 }}>
+                        {section.content || "(无描述文本)"}
+                      </Typography.Paragraph>
 
                       {charts.length ? (
                         <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
@@ -207,49 +185,6 @@ export default function ReportDetailPage() {
           )}
         </Card>
       </Space>
-
-      <Modal
-        open={publishOpen}
-        title="发布确认"
-        onCancel={() => {
-          setPublishOpen(false);
-          setComment("");
-        }}
-        okText="确认发布"
-        cancelText="取消"
-        confirmLoading={publishMutation.isPending}
-        onOk={async () => {
-          if (!latestSnapshotId) {
-            messageApi.error("发布失败：缺少 snapshot_id，请先组装");
-            return;
-          }
-
-          try {
-            const result = await publishMutation.mutateAsync({
-              reportKey,
-              snapshotId: latestSnapshotId,
-              comment: comment || undefined,
-            });
-            messageApi.success(`发布成功，version=${result.published_version}`);
-            setPublishOpen(false);
-            setComment("");
-          } catch (error) {
-            messageApi.error(`发布失败：${http.toErrorMessage(error)}`);
-          }
-        }}
-      >
-        <Space orientation="vertical" style={{ width: "100%" }}>
-          <Typography.Text>
-            snapshot_id: <strong>{latestSnapshotId || "-"}</strong>
-          </Typography.Text>
-          <Input.TextArea
-            value={comment}
-            onChange={(event) => setComment(event.target.value)}
-            rows={3}
-            placeholder="发布备注（可选）"
-          />
-        </Space>
-      </Modal>
     </>
   );
 }

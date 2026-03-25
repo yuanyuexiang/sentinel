@@ -1,21 +1,19 @@
 import type { AxiosProgressEvent } from "axios";
 import { http } from "@/lib/http";
 import {
-  assembleResultSchema,
-  publishResultSchema,
   reportDetailSchema,
   reportListSchema,
   reportSectionSchema,
+  saveReportResultSchema,
   uploadExcelResultSchema,
 } from "@/features/reports/schemas";
 import type {
-  AssembleResult,
   CreateReportInput,
-  PublishResult,
   ReportChapter,
   ReportDetail,
   ReportListItem,
   ReportSection,
+  SaveReportResult,
   UpdateReportInput,
   UploadExcelResult,
 } from "@/features/reports/types";
@@ -54,26 +52,13 @@ export async function uploadExcel(input: {
   return uploadExcelResultSchema.parse(payload);
 }
 
-export async function assembleReport(reportKey: string): Promise<AssembleResult> {
-  const payload = await http.post<AssembleResult, { report_key: string }>("/v1/reports/assemble", {
-    report_key: reportKey,
-  });
-  return assembleResultSchema.parse(payload);
-}
-
-export async function publishReport(input: {
-  reportKey: string;
-  snapshotId: number;
-  comment?: string;
-}): Promise<PublishResult> {
-  const payload = await http.post<PublishResult, { snapshot_id: number; comment?: string }>(
-    `/v1/reports/${input.reportKey}/publish`,
-    {
-      snapshot_id: input.snapshotId,
-      comment: input.comment,
-    },
-  );
-  return publishResultSchema.parse(payload);
+export async function saveReport(
+  reportKey: string,
+  input: UpdateReportInput,
+): Promise<SaveReportResult> {
+  const writePayload = toWritePayload(input);
+  const payload = await http.patch<SaveReportResult, Record<string, unknown>>(`/v1/reports/${reportKey}`, writePayload);
+  return saveReportResultSchema.parse(payload);
 }
 
 export async function getReportDetail(reportKey: string): Promise<ReportDetail> {
@@ -189,8 +174,9 @@ function normalizeReportDetail(
     report_key: rawDetail.report_key || fallbackReportKey,
     name: rawDetail.name || fallbackReportKey,
     type: rawDetail.type || "unknown",
-    status: rawDetail.status || "draft",
-    published_version: rawDetail.published_version ?? 0,
+    status: rawDetail.status || "active",
+    published_version: rawDetail.published_version,
+    updated_at: rawDetail.updated_at,
     sections,
     chapters,
   });
@@ -231,7 +217,7 @@ function buildChaptersFromSections(sections: ReportSection[], status?: string): 
     title: chapterKey,
     subtitle: null,
     order: index + 1,
-    status: status || "draft",
+    status: status || "active",
     sections: chapterSections.map((section) => ({
       ...section,
       chapter_key: undefined,
@@ -274,18 +260,18 @@ function extractChapters(
   fallbackChapters?: ReportChapter[],
 ): ReportChapter[] {
   if (rawDetail.chapters && rawDetail.chapters.length > 0) {
-    return mergeChaptersWithFallback(rawDetail.chapters, fallbackChapters, rawDetail.status || "draft");
+    return mergeChaptersWithFallback(rawDetail.chapters, fallbackChapters, rawDetail.status || "active");
   }
 
   if (fallbackChapters && fallbackChapters.length > 0) {
     return fallbackChapters.map((chapter, index) => ({
       ...chapter,
       order: chapter.order || index + 1,
-      status: chapter.status || rawDetail.status || "draft",
+        status: chapter.status || rawDetail.status || "active",
     }));
   }
 
-  return buildChaptersFromSections(normalizedSections, rawDetail.status || "draft");
+  return buildChaptersFromSections(normalizedSections, rawDetail.status || "active");
 }
 
 function mergeChaptersWithFallback(

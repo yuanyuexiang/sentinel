@@ -4,7 +4,8 @@ export type ReportListItem = {
   name: string;
   type: string;
   status: string;
-  published_version: number;
+  published_version?: number;
+  updated_at?: string;
 };
 
 export type UploadExcelResult = {
@@ -14,16 +15,10 @@ export type UploadExcelResult = {
   parsed_points: number;
 };
 
-export type AssembleResult = {
+export type SaveReportResult = {
   report_key: string;
-  snapshot_id: number;
-  payload_hash: string;
-};
-
-export type PublishResult = {
-  report_key: string;
-  published_version: number;
-  snapshot_id: number;
+  payload_hash?: string;
+  saved_at?: string;
 };
 
 export type ReportChart = {
@@ -44,6 +39,7 @@ export type ReportSection = {
   section_key: string;
   title: string;
   subtitle?: string | null;
+  content?: string | null;
   order?: number;
   content_items?: {
     charts?: ReportChart[];
@@ -65,7 +61,8 @@ export type ReportDetail = {
   name: string;
   type: string;
   status: string;
-  published_version: number;
+  published_version?: number;
+  updated_at?: string;
   sections: ReportSection[];
   chapters?: ReportChapter[];
 };

@@ -1,12 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  assembleReport,
   createReport,
   deleteReport,
   getReportDetail,
   getReports,
   getSectionDetail,
-  publishReport,
   updateReport,
   uploadExcel,
 } from "@/features/reports/api";
@@ -50,30 +48,6 @@ export function useUploadExcelMutation() {
     mutationFn: uploadExcel,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: reportKeys.list() });
-    },
-  });
-}
-
-export function useAssembleMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: assembleReport,
-    onSuccess: (data) => {
-      void queryClient.invalidateQueries({ queryKey: reportKeys.list() });
-      void queryClient.invalidateQueries({ queryKey: reportKeys.detail(data.report_key) });
-    },
-  });
-}
-
-export function usePublishMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: publishReport,
-    onSuccess: (data) => {
-      void queryClient.invalidateQueries({ queryKey: reportKeys.list() });
-      void queryClient.invalidateQueries({ queryKey: reportKeys.detail(data.report_key) });
     },
   });
 }

@@ -262,6 +262,7 @@ function ReportEditorWorkspace({
       section_key: sectionKey,
       title: `New Section ${chapterSections.length + 1}`,
       subtitle: null,
+      content: "",
       order: chapterSections.length + 1,
       content_items: {
         charts: [createDefaultChart(chartId)],
@@ -370,7 +371,7 @@ function ReportEditorWorkspace({
     onSuccess("已删除 chart");
   };
 
-  const updateSelectedSectionMeta = (next: { title?: string; subtitle?: string | null }) => {
+  const updateSelectedSectionMeta = (next: { title?: string; subtitle?: string | null; content?: string | null }) => {
     if (!selectedSection) {
       return;
     }
@@ -387,6 +388,10 @@ function ReportEditorWorkspace({
 
     if (next.subtitle !== undefined) {
       targetSection.subtitle = next.subtitle;
+    }
+
+    if (next.content !== undefined) {
+      targetSection.content = next.content;
     }
 
     setDraft(nextDraft);
@@ -577,7 +582,7 @@ function ReportEditorWorkspace({
       onSuccess("保存成功");
     } catch (error) {
       onError(
-        `保存失败：${http.toErrorMessage(error)}。如果后端暂不支持 sections patch，请确认 CRUD 接口契约。`,
+        `保存失败：${http.toErrorMessage(error)}。请确认后端 CRUD 接口支持 chapters 结构写入。`,
       );
     }
   };
@@ -664,8 +669,8 @@ function ReportEditorWorkspace({
               description: `${configuredCharts}/${allCharts.length || 0} 已配置`,
             },
             {
-              title: "校验发布",
-              description: validationIssues.length ? `${validationIssues.length} 个问题` : "可发布",
+              title: "校验保存",
+              description: validationIssues.length ? `${validationIssues.length} 个问题` : "可保存",
             },
           ]}
         />
@@ -685,7 +690,7 @@ function ReportEditorWorkspace({
         }
       >
         <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-          按步骤完成编辑：先定义结构，再导入模板或输入数据，完成字段绑定，最后校验并发布。
+          按步骤完成编辑：先定义结构，再导入模板或输入数据，完成字段绑定，最后校验并保存。
         </Typography.Paragraph>
 
         {currentStep === 0 ? (
@@ -714,7 +719,7 @@ function ReportEditorWorkspace({
                 onChange={(value) => setDraft((prev) => ({ ...prev, status: value }))}
                 options={[
                   { label: "draft", value: "draft" },
-                  { label: "published", value: "published" },
+                  { label: "active", value: "active" },
                 ]}
               />
             </Col>
@@ -724,7 +729,7 @@ function ReportEditorWorkspace({
             type="info"
             showIcon
             message={`当前步骤：${
-              ["基础信息", "结构编辑", "数据源", "字段绑定", "校验发布"][currentStep]
+              ["基础信息", "结构编辑", "数据源", "字段绑定", "校验保存"][currentStep]
             }`}
           />
         )}
@@ -773,6 +778,9 @@ function ReportEditorWorkspace({
                     {selectedSection.title}
                   </Typography.Title>
                   <Typography.Text type="secondary">{selectedSection.subtitle || "-"}</Typography.Text>
+                  <Typography.Paragraph style={{ margin: 0 }}>
+                    {selectedSection.content || "(无描述文本)"}
+                  </Typography.Paragraph>
 
                   {(selectedSection.content_items?.charts || []).map((chart) => {
                     const columns =
@@ -843,6 +851,12 @@ function ReportEditorWorkspace({
                       value={selectedSection.subtitle || ""}
                       onChange={(event) => updateSelectedSectionMeta({ subtitle: event.target.value || null })}
                       placeholder="Section subtitle"
+                    />
+                    <Input.TextArea
+                      value={selectedSection.content || ""}
+                      onChange={(event) => updateSelectedSectionMeta({ content: event.target.value || null })}
+                      rows={4}
+                      placeholder="Section content"
                     />
 
                     <Divider style={{ margin: "8px 0" }} />
@@ -1080,7 +1094,7 @@ function ReportEditorWorkspace({
       ) : null}
 
       {currentStep === 4 ? (
-        <Card title="校验与发布">
+        <Card title="校验与保存">
           <Space orientation="vertical" style={{ width: "100%" }}>
             <Typography.Text>
               结构统计：{sections.length} sections / {allCharts.length} charts / {configuredCharts} 已配置
@@ -1102,7 +1116,7 @@ function ReportEditorWorkspace({
                 }
               />
             ) : (
-              <Alert type="success" showIcon message="校验通过，可保存草稿并进行发布流程。" />
+              <Alert type="success" showIcon message="校验通过，可直接保存。" />
             )}
 
             <Space>

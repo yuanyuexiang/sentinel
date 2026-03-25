@@ -6,7 +6,8 @@ export const reportListItemSchema = z.object({
   name: z.string(),
   type: z.string(),
   status: z.string(),
-  published_version: z.number(),
+  published_version: z.number().optional(),
+  updated_at: z.string().optional(),
 });
 
 export const reportListSchema = z.array(reportListItemSchema);
@@ -18,16 +19,10 @@ export const uploadExcelResultSchema = z.object({
   parsed_points: z.number(),
 });
 
-export const assembleResultSchema = z.object({
+export const saveReportResultSchema = z.object({
   report_key: z.string(),
-  snapshot_id: z.number(),
-  payload_hash: z.string(),
-});
-
-export const publishResultSchema = z.object({
-  report_key: z.string(),
-  published_version: z.number(),
-  snapshot_id: z.number(),
+  payload_hash: z.string().optional(),
+  saved_at: z.string().optional(),
 });
 
 export const reportChartSchema = z.object({
@@ -59,6 +54,7 @@ export const reportSectionSchema = z.object({
   section_key: z.string(),
   title: z.string(),
   subtitle: z.string().nullable().optional(),
+  content: z.string().nullable().optional(),
   order: z.number().optional(),
   content_items: z
     .object({
@@ -82,7 +78,8 @@ export const reportDetailSchema = z.object({
   name: z.string(),
   type: z.string(),
   status: z.string(),
-  published_version: z.number(),
+  published_version: z.number().optional(),
+  updated_at: z.string().optional(),
   sections: z.array(reportSectionSchema),
   chapters: z.array(reportChapterSchema).optional(),
 });

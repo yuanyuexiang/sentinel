@@ -39,7 +39,7 @@ export default function NewReportPage() {
         <Form
           form={form}
           layout="vertical"
-          initialValues={{ type: "analytics", status: "draft" }}
+          initialValues={{ type: "analytics", status: "active" }}
           onFinish={async (values) => {
             try {
               const data = await createMutation.mutateAsync({
@@ -76,7 +76,7 @@ export default function NewReportPage() {
             <Select
               options={[
                 { label: "draft", value: "draft" },
-                { label: "published", value: "published" },
+                { label: "active", value: "active" },
               ]}
             />
           </Form.Item>
