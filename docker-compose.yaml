@@ -42,7 +42,7 @@ services:
       - matrix-network
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.sentinel.rule=Host(`web.10.140.208.14.nip.io`)"
+      - "traefik.http.routers.sentinel.rule=Host(`admin.10.140.208.14.nip.io`)"
       - "traefik.http.routers.sentinel.entrypoints=web"
       - "traefik.http.routers.sentinel.service=sentinel"
       - "traefik.http.services.sentinel.loadbalancer.server.port=3000"
