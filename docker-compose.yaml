@@ -1,0 +1,53 @@
+# 基础建设
+services:
+  traefik:
+    image: traefik:v3.6.5
+    platform: linux/amd64
+    container_name: traefik
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+    command:
+      - "--log.level=DEBUG"
+      - "--api.insecure=false"
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=matrix-network"
+      - "--entrypoints.web.address=:80"
+    volumes:
+      - "./data/traefik/letsencrypt:/letsencrypt"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`traefik.10.140.208.14.nip.io`)"
+      - "traefik.http.routers.api.entrypoints=web"
+      - "traefik.http.routers.api.service=api@internal"
+    ports:
+      - "80:80"
+      #- "8080:8080"
+      - "443:443"
+    networks:
+      - matrix-network
+
+  sentinel:
+    container_name: sentinel
+    image: yuanyuexiang/sentinel:v2
+    restart: always
+    healthcheck:
+      disable: true
+    ports:
+      - "3000:3000"
+    networks:
+      - matrix-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sentinel.rule=Host(`web.10.140.208.14.nip.io`)"
+      - "traefik.http.routers.sentinel.entrypoints=web"
+      - "traefik.http.routers.sentinel.service=sentinel"
+      - "traefik.http.services.sentinel.loadbalancer.server.port=3000"
+
+networks:
+  matrix-network:
+    driver: bridge
+    name: matrix-network

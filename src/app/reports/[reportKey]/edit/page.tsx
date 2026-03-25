@@ -650,15 +650,15 @@ function ReportEditorWorkspace({
           items={[
             {
               title: "基础信息",
-              description: draft.name && draft.type ? "已完成" : "待完成",
+              content: draft.name && draft.type ? "已完成" : "待完成",
             },
             {
               title: "结构编辑",
-              description: `${allSections.length} sections / ${allCharts.length} charts`,
+              content: `${allSections.length} sections / ${allCharts.length} charts`,
             },
             {
               title: "数据源",
-              description: templateImportResult
+              content: templateImportResult
                 ? `模板：${templateImportResult.kind}`
                 : selectedEditorState && parseRowsText(selectedEditorState.rowsText).length
                   ? "JSON 已输入"
@@ -666,11 +666,11 @@ function ReportEditorWorkspace({
             },
             {
               title: "字段绑定",
-              description: `${configuredCharts}/${allCharts.length || 0} 已配置`,
+              content: `${configuredCharts}/${allCharts.length || 0} 已配置`,
             },
             {
               title: "校验保存",
-              description: validationIssues.length ? `${validationIssues.length} 个问题` : "可保存",
+              content: validationIssues.length ? `${validationIssues.length} 个问题` : "可保存",
             },
           ]}
         />

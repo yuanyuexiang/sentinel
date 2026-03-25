@@ -47,7 +47,7 @@ export default function ReportsPage() {
     {
       title: "Updated At",
       key: "updated_at",
-      render: (_, row) => row.updated_at || "-",
+      render: (_, row) => formatDateTime(row.updated_at),
     },
     {
       title: "操作",
@@ -124,4 +124,17 @@ export default function ReportsPage() {
       </Card>
     </>
   );
+}
+
+function formatDateTime(value?: string): string {
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString("zh-CN", { hour12: false });
 }

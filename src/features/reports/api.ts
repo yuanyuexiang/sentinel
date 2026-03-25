@@ -27,7 +27,30 @@ type ReportListResponse =
 export async function getReports(): Promise<ReportListItem[]> {
   const payload = await http.get<ReportListResponse>("/v1/reports");
   const rawItems = Array.isArray(payload) ? payload : payload.items || [];
-  return reportListSchema.parse(rawItems);
+  return reportListSchema.parse(rawItems.map(normalizeReportListItem));
+}
+
+function normalizeReportListItem(item: ReportListItem): ReportListItem {
+  const row = item as ReportListItem & {
+    updatedAt?: string;
+    update_time?: string;
+    updateTime?: string;
+    saved_at?: string;
+    modified_at?: string;
+    modifiedAt?: string;
+  };
+
+  return {
+    ...row,
+    updated_at:
+      row.updated_at ||
+      row.updatedAt ||
+      row.update_time ||
+      row.updateTime ||
+      row.saved_at ||
+      row.modified_at ||
+      row.modifiedAt,
+  };
 }
 
 export async function uploadExcel(input: {
