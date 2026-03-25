@@ -132,7 +132,7 @@ export async function createReport(input: CreateReportInput): Promise<ReportDeta
 
   const rawDetail: Partial<ReportDetail> = payloadObject.payload ?? (payload as Partial<ReportDetail>);
 
-  return normalizeReportDetail(rawDetail, input.report_key);
+  return normalizeReportDetail(rawDetail, input.report_key, input.sections);
 }
 
 export async function updateReport(reportKey: string, input: UpdateReportInput): Promise<ReportDetail> {
@@ -150,7 +150,7 @@ export async function updateReport(reportKey: string, input: UpdateReportInput):
 
   const rawDetail: Partial<ReportDetail> = payloadObject.payload ?? (payload as Partial<ReportDetail>);
 
-  return normalizeReportDetail(rawDetail, reportKey);
+  return normalizeReportDetail(rawDetail, reportKey, input.sections);
 }
 
 export async function deleteReport(reportKey: string): Promise<{ report_key: string }> {
@@ -170,7 +170,11 @@ export async function deleteReport(reportKey: string): Promise<{ report_key: str
   };
 }
 
-function normalizeReportDetail(rawDetail: Partial<ReportDetail>, fallbackReportKey: string): ReportDetail {
+function normalizeReportDetail(
+  rawDetail: Partial<ReportDetail>,
+  fallbackReportKey: string,
+  fallbackSections?: ReportSection[],
+): ReportDetail {
   return reportDetailSchema.parse({
     id: rawDetail.id,
     report_key: rawDetail.report_key || fallbackReportKey,
@@ -178,6 +182,6 @@ function normalizeReportDetail(rawDetail: Partial<ReportDetail>, fallbackReportK
     type: rawDetail.type || "unknown",
     status: rawDetail.status || "draft",
     published_version: rawDetail.published_version ?? 0,
-    sections: rawDetail.sections || [],
+    sections: rawDetail.sections ?? fallbackSections ?? [],
   });
 }
