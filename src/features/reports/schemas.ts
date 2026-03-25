@@ -55,6 +55,7 @@ export const reportChartSchema = z.object({
 });
 
 export const reportSectionSchema = z.object({
+  chapter_key: z.string().optional(),
   section_key: z.string(),
   title: z.string(),
   subtitle: z.string().nullable().optional(),
@@ -66,6 +67,15 @@ export const reportSectionSchema = z.object({
     .optional(),
 });
 
+export const reportChapterSchema = z.object({
+  chapter_key: z.string(),
+  title: z.string(),
+  subtitle: z.string().nullable().optional(),
+  order: z.number().optional(),
+  status: z.string().optional(),
+  sections: z.array(reportSectionSchema).optional(),
+});
+
 export const reportDetailSchema = z.object({
   id: z.string().optional(),
   report_key: z.string(),
@@ -74,6 +84,7 @@ export const reportDetailSchema = z.object({
   status: z.string(),
   published_version: z.number(),
   sections: z.array(reportSectionSchema),
+  chapters: z.array(reportChapterSchema).optional(),
 });
 
 export const reportFormSchema = z.object({

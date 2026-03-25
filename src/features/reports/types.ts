@@ -40,6 +40,7 @@ export type ReportChart = {
 };
 
 export type ReportSection = {
+  chapter_key?: string;
   section_key: string;
   title: string;
   subtitle?: string | null;
@@ -47,6 +48,15 @@ export type ReportSection = {
   content_items?: {
     charts?: ReportChart[];
   };
+};
+
+export type ReportChapter = {
+  chapter_key: string;
+  title: string;
+  subtitle?: string | null;
+  order?: number;
+  status?: string;
+  sections?: ReportSection[];
 };
 
 export type ReportDetail = {
@@ -57,6 +67,7 @@ export type ReportDetail = {
   status: string;
   published_version: number;
   sections: ReportSection[];
+  chapters?: ReportChapter[];
 };
 
 export type CreateReportInput = {
@@ -65,6 +76,7 @@ export type CreateReportInput = {
   type: string;
   status: string;
   sections?: ReportSection[];
+  chapters?: ReportChapter[];
 };
 
 export type UpdateReportInput = {
@@ -72,4 +84,5 @@ export type UpdateReportInput = {
   type?: string;
   status?: string;
   sections?: ReportSection[];
+  chapters?: ReportChapter[];
 };

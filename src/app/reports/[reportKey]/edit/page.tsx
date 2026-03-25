@@ -26,7 +26,7 @@ import {
 import type { DataNode } from "antd/es/tree";
 import { useReportDetailQuery, useUpdateReportMutation } from "@/features/reports/hooks";
 import { parseTemplateWorkbook, type TemplateImportResult } from "@/features/reports/template-import";
-import type { ReportChart, ReportDetail } from "@/features/reports/types";
+import type { ReportChapter, ReportChart, ReportDetail, ReportSection } from "@/features/reports/types";
 import { http } from "@/lib/http";
 
 type Scalar = string | number | null;
@@ -43,6 +43,8 @@ type ChartEditorState = {
   rowsText: string;
   binding: ChartBinding;
 };
+
+type TemplateApplyMode = "append-chapter" | "replace-chapter" | "replace-all";
 
 export default function ReportEditPage() {
   const { reportKey } = useParams<{ reportKey: string }>();
@@ -85,6 +87,10 @@ function ReportEditorWorkspace({
   const updateMutation = useUpdateReportMutation();
 
   const [draft, setDraft] = useState<ReportDetail>(() => cloneReport(initialReport));
+  const [selectedChapterKey, setSelectedChapterKey] = useState<string>(() => {
+    const firstChapter = ensureDraftChapters(initialReport)[0];
+    return firstChapter?.chapter_key || "chapter_1";
+  });
   const [selectedSectionKey, setSelectedSectionKey] = useState<string>(() => {
     const firstSection = [...initialReport.sections].sort((a, b) => (a.order || 0) - (b.order || 0))[0];
     return firstSection?.section_key || "";
@@ -97,25 +103,40 @@ function ReportEditorWorkspace({
   const [currentStep, setCurrentStep] = useState(0);
   const [templateImportResult, setTemplateImportResult] = useState<TemplateImportResult | null>(null);
   const [templateImportLoading, setTemplateImportLoading] = useState(false);
+  const [templateApplyMode, setTemplateApplyMode] = useState<TemplateApplyMode>("append-chapter");
 
-  const sections = [...(draft.sections || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
+  const chapters = ensureDraftChapters(draft);
+  const sections = [...(draft.sections || [])]
+    .filter((item) => (item.chapter_key || "chapter_1") === selectedChapterKey)
+    .sort((a, b) => (a.order || 0) - (b.order || 0));
   const selectedSection = sections.find((item) => item.section_key === selectedSectionKey);
   const selectedChart = selectedSection?.content_items?.charts?.find((item) => item.chart_id === selectedChartId);
 
-  const treeData: DataNode[] = sections.map((section) => ({
-    key: `section:${section.section_key}`,
-    title: `${section.title} (${section.section_key})`,
-    children: (section.content_items?.charts || []).map((chart) => ({
-      key: `chart:${section.section_key}:${chart.chart_id}`,
-      title: `${chart.title} [${chart.chart_type}]`,
-      isLeaf: true,
-    })),
-  }));
+  const treeData: DataNode[] = chapters.map((chapter) => {
+    const chapterSections = [...(draft.sections || [])]
+      .filter((item) => (item.chapter_key || "chapter_1") === chapter.chapter_key)
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    return {
+      key: `chapter:${chapter.chapter_key}`,
+      title: `${chapter.title} (${chapter.chapter_key})`,
+      children: chapterSections.map((section) => ({
+        key: `section:${chapter.chapter_key}:${section.section_key}`,
+        title: `${section.title} (${section.section_key})`,
+        children: (section.content_items?.charts || []).map((chart) => ({
+          key: `chart:${chapter.chapter_key}:${section.section_key}:${chart.chart_id}`,
+          title: `${chart.title} [${chart.chart_type}]`,
+          isLeaf: true,
+        })),
+      })),
+    };
+  });
 
   const selectedEditorState = getEditorState(selectedChart, editorMap);
   const editableRows = getSourceRows(selectedEditorState);
   const rowFields = getRowFields(editableRows);
-  const allCharts = sections.flatMap((section) => section.content_items?.charts || []);
+  const allSections = [...(draft.sections || [])];
+  const allCharts = allSections.flatMap((section) => section.content_items?.charts || []);
   const configuredCharts = allCharts.filter((chart) => isChartConfigured(chart)).length;
   const validationIssues = collectValidationIssues(draft);
   const previewOption =
@@ -126,20 +147,81 @@ function ReportEditorWorkspace({
   const onSelectTree = (keys: React.Key[]) => {
     const key = String(keys[0] || "");
 
+    if (key.startsWith("chapter:")) {
+      const chapterKey = key.replace("chapter:", "");
+      setSelectedChapterKey(chapterKey);
+
+      const firstSection = [...(draft.sections || [])]
+        .filter((item) => (item.chapter_key || "chapter_1") === chapterKey)
+        .sort((a, b) => (a.order || 0) - (b.order || 0))[0];
+
+      setSelectedSectionKey(firstSection?.section_key || "");
+      setSelectedChartId(firstSection?.content_items?.charts?.[0]?.chart_id || "");
+      return;
+    }
+
     if (key.startsWith("section:")) {
-      const sectionKey = key.replace("section:", "");
+      const [, chapterKey, sectionKey] = key.split(":");
+      setSelectedChapterKey(chapterKey || "chapter_1");
       setSelectedSectionKey(sectionKey);
-      const section = sections.find((item) => item.section_key === sectionKey);
+      const section = (draft.sections || []).find((item) => item.section_key === sectionKey);
       const firstChart = section?.content_items?.charts?.[0];
       setSelectedChartId(firstChart?.chart_id || "");
       return;
     }
 
     if (key.startsWith("chart:")) {
-      const [, sectionKey, chartId] = key.split(":");
+      const [, chapterKey, sectionKey, chartId] = key.split(":");
+      setSelectedChapterKey(chapterKey || "chapter_1");
       setSelectedSectionKey(sectionKey || "");
       setSelectedChartId(chartId || "");
     }
+  };
+
+  const addChapter = () => {
+    const nextDraft = cloneReport(draft);
+    const nextChapters = ensureDraftChapters(nextDraft);
+    const chapterKey = nextChapterKey(nextChapters);
+
+    nextChapters.push({
+      chapter_key: chapterKey,
+      title: `Chapter ${nextChapters.length + 1}`,
+      subtitle: null,
+      order: nextChapters.length + 1,
+      status: nextDraft.status,
+      sections: [],
+    });
+
+    nextDraft.chapters = nextChapters;
+    setDraft(nextDraft);
+    setSelectedChapterKey(chapterKey);
+    setSelectedSectionKey("");
+    setSelectedChartId("");
+    onSuccess("已新增 chapter");
+  };
+
+  const removeSelectedChapter = () => {
+    const nextDraft = cloneReport(draft);
+    const nextChapters = ensureDraftChapters(nextDraft).filter((item) => item.chapter_key !== selectedChapterKey);
+    const remainingSections = (nextDraft.sections || []).filter(
+      (item) => (item.chapter_key || "chapter_1") !== selectedChapterKey,
+    );
+
+    nextDraft.chapters = nextChapters.map((item, index) => ({ ...item, order: index + 1 }));
+    nextDraft.sections = remainingSections;
+
+    setDraft(nextDraft);
+
+    const firstChapter = nextDraft.chapters?.[0];
+    setSelectedChapterKey(firstChapter?.chapter_key || "chapter_1");
+
+    const firstSection = (nextDraft.sections || [])
+      .filter((item) => (item.chapter_key || "chapter_1") === (firstChapter?.chapter_key || "chapter_1"))
+      .sort((a, b) => (a.order || 0) - (b.order || 0))[0];
+
+    setSelectedSectionKey(firstSection?.section_key || "");
+    setSelectedChartId(firstSection?.content_items?.charts?.[0]?.chart_id || "");
+    onSuccess("已删除 chapter");
   };
 
   const updateSelectedEditorState = (next: Partial<ChartEditorState>) => {
@@ -171,12 +253,16 @@ function ReportEditorWorkspace({
     const nextDraft = cloneReport(draft);
     const sectionKey = nextSectionKey(nextDraft.sections);
     const chartId = nextChartId([]);
+    const chapterSections = (nextDraft.sections || []).filter(
+      (item) => (item.chapter_key || "chapter_1") === selectedChapterKey,
+    );
 
     const newSection = {
+      chapter_key: selectedChapterKey,
       section_key: sectionKey,
-      title: `New Section ${nextDraft.sections.length + 1}`,
+      title: `New Section ${chapterSections.length + 1}`,
       subtitle: null,
-      order: nextDraft.sections.length + 1,
+      order: chapterSections.length + 1,
       content_items: {
         charts: [createDefaultChart(chartId)],
       },
@@ -224,18 +310,43 @@ function ReportEditorWorkspace({
     }
 
     const nextDraft = cloneReport(draft);
-    nextDraft.sections = nextDraft.sections.filter((item) => item.section_key !== selectedSection.section_key);
-    nextDraft.sections = nextDraft.sections.map((item, index) => ({
-      ...item,
-      order: index + 1,
-    }));
+    nextDraft.sections = nextDraft.sections
+      .filter((item) => item.section_key !== selectedSection.section_key)
+      .map((item) => item);
+
+    const chapterSections = nextDraft.sections
+      .filter((item) => (item.chapter_key || "chapter_1") === selectedChapterKey)
+      .sort((a, b) => (a.order || 0) - (b.order || 0))
+      .map((item, index) => ({ ...item, order: index + 1 }));
+
+    const otherSections = nextDraft.sections.filter((item) => (item.chapter_key || "chapter_1") !== selectedChapterKey);
+    nextDraft.sections = [...otherSections, ...chapterSections];
 
     setDraft(nextDraft);
 
-    const first = [...nextDraft.sections].sort((a, b) => (a.order || 0) - (b.order || 0))[0];
+    const first = chapterSections[0];
     setSelectedSectionKey(first?.section_key || "");
     setSelectedChartId(first?.content_items?.charts?.[0]?.chart_id || "");
     onSuccess("已删除 section");
+  };
+
+  const updateSelectedChapterMeta = (next: { title?: string; subtitle?: string | null; status?: string }) => {
+    const nextDraft = cloneReport(draft);
+    const nextChapters = ensureDraftChapters(nextDraft).map((chapter) => {
+      if (chapter.chapter_key !== selectedChapterKey) {
+        return chapter;
+      }
+
+      return {
+        ...chapter,
+        ...(next.title !== undefined ? { title: next.title } : {}),
+        ...(next.subtitle !== undefined ? { subtitle: next.subtitle } : {}),
+        ...(next.status !== undefined ? { status: next.status } : {}),
+      };
+    });
+
+    nextDraft.chapters = nextChapters;
+    setDraft(nextDraft);
   };
 
   const removeSelectedChart = () => {
@@ -358,15 +469,85 @@ function ReportEditorWorkspace({
     }
 
     const nextDraft = cloneReport(draft);
-    nextDraft.sections = templateImportResult.sections;
+
+    const existingSections = nextDraft.sections || [];
+    const existingSectionKeys = new Set(existingSections.map((item) => item.section_key));
+    const existingChartIds = new Set(
+      existingSections.flatMap((section) => (section.content_items?.charts || []).map((chart) => chart.chart_id)),
+    );
+
+    const currentChapterKey = selectedChapterKey || ensureDraftChapters(nextDraft)[0]?.chapter_key || "chapter_1";
+
+    let appliedSections: ReportSection[] = [];
+    if (templateApplyMode === "replace-all") {
+      const importedSections = remapTemplateSections(
+        templateImportResult.sections,
+        "chapter_1",
+        new Set(),
+        new Set(),
+        0,
+      );
+
+      nextDraft.sections = importedSections;
+      nextDraft.chapters = [
+        {
+          chapter_key: "chapter_1",
+          title: templateImportResult.title || "Chapter 1",
+          subtitle: templateImportResult.subtitle || null,
+          order: 1,
+          status: nextDraft.status,
+          sections: importedSections.map((item) => ({ ...item, chapter_key: undefined })),
+        },
+      ];
+      appliedSections = importedSections;
+      setSelectedChapterKey("chapter_1");
+    } else {
+      const chapterSections = existingSections.filter((item) => (item.chapter_key || "chapter_1") === currentChapterKey);
+      const sectionStartOrder =
+        templateApplyMode === "append-chapter"
+          ? Math.max(0, ...chapterSections.map((item) => item.order || 0))
+          : 0;
+
+      const baseSections =
+        templateApplyMode === "replace-chapter"
+          ? existingSections.filter((item) => (item.chapter_key || "chapter_1") !== currentChapterKey)
+          : existingSections;
+
+      const importedSections = remapTemplateSections(
+        templateImportResult.sections,
+        currentChapterKey,
+        existingSectionKeys,
+        existingChartIds,
+        sectionStartOrder,
+      );
+
+      nextDraft.sections = [...baseSections, ...importedSections];
+
+      const chapters = ensureDraftChapters(nextDraft);
+      if (!chapters.some((item) => item.chapter_key === currentChapterKey)) {
+        chapters.push({
+          chapter_key: currentChapterKey,
+          title: currentChapterKey,
+          subtitle: null,
+          order: chapters.length + 1,
+          status: nextDraft.status,
+          sections: [],
+        });
+      }
+
+      nextDraft.chapters = chapters;
+      appliedSections = importedSections;
+      setSelectedChapterKey(currentChapterKey);
+    }
 
     if (templateImportResult.title) {
       nextDraft.name = templateImportResult.title;
     }
 
     setDraft(nextDraft);
+    setEditorMap({});
 
-    const firstSection = [...nextDraft.sections].sort((a, b) => (a.order || 0) - (b.order || 0))[0];
+    const firstSection = appliedSections[0] || [...nextDraft.sections].sort((a, b) => (a.order || 0) - (b.order || 0))[0];
     setSelectedSectionKey(firstSection?.section_key || "");
     setSelectedChartId(firstSection?.content_items?.charts?.[0]?.chart_id || "");
 
@@ -382,6 +563,7 @@ function ReportEditorWorkspace({
           type: draft.type,
           status: draft.status,
           sections: draft.sections,
+          chapters: buildChaptersForSave(draft),
         },
       });
 
@@ -409,7 +591,7 @@ function ReportEditorWorkspace({
     }
 
     if (currentStep === 1) {
-      if (!sections.length || !allCharts.length) {
+      if (!allSections.length || !allCharts.length) {
         onError("请至少创建 1 个 section 和 1 个 chart");
         return;
       }
@@ -467,7 +649,7 @@ function ReportEditorWorkspace({
             },
             {
               title: "结构编辑",
-              description: `${sections.length} sections / ${allCharts.length} charts`,
+              description: `${allSections.length} sections / ${allCharts.length} charts`,
             },
             {
               title: "数据源",
@@ -553,6 +735,9 @@ function ReportEditorWorkspace({
           <Col xs={24} lg={6}>
             <Card title="结构树" styles={{ body: { maxHeight: 700, overflowY: "auto" } }}>
               <Space style={{ marginBottom: 12 }} wrap>
+                <Button size="small" onClick={addChapter}>
+                  新增 Chapter
+                </Button>
                 <Button size="small" onClick={addSection}>
                   新增 Section
                 </Button>
@@ -566,7 +751,13 @@ function ReportEditorWorkspace({
                   treeData={treeData}
                   onSelect={onSelectTree}
                   defaultExpandAll
-                  selectedKeys={selectedChartId ? [`chart:${selectedSectionKey}:${selectedChartId}`] : []}
+                  selectedKeys={
+                    selectedChartId
+                      ? [`chart:${selectedChapterKey}:${selectedSectionKey}:${selectedChartId}`]
+                      : selectedSectionKey
+                        ? [`section:${selectedChapterKey}:${selectedSectionKey}`]
+                        : [`chapter:${selectedChapterKey}`]
+                  }
                 />
               ) : (
                 <Empty description="暂无 section/chart" />
@@ -626,8 +817,22 @@ function ReportEditorWorkspace({
           <Col xs={24} lg={6}>
             {currentStep === 1 ? (
               <Card title="结构编辑" styles={{ body: { maxHeight: 700, overflowY: "auto" } }}>
-                {selectedSection ? (
-                  <Space orientation="vertical" style={{ width: "100%" }}>
+                <Space orientation="vertical" style={{ width: "100%" }}>
+                  <Typography.Text strong>Chapter 设置</Typography.Text>
+                  <Input
+                    value={chapters.find((item) => item.chapter_key === selectedChapterKey)?.title || ""}
+                    onChange={(event) => updateSelectedChapterMeta({ title: event.target.value })}
+                    placeholder="Chapter title"
+                  />
+
+                  <Button size="small" danger onClick={removeSelectedChapter} disabled={chapters.length <= 1}>
+                    删除当前 Chapter
+                  </Button>
+
+                  <Divider style={{ margin: "8px 0" }} />
+
+                  {selectedSection ? (
+                    <>
                     <Typography.Text strong>Section 设置</Typography.Text>
                     <Input
                       value={selectedSection.title}
@@ -675,10 +880,11 @@ function ReportEditorWorkspace({
                         删除当前 Section
                       </Button>
                     </Space>
-                  </Space>
-                ) : (
-                  <Empty description="请先选择一个 section" />
-                )}
+                    </>
+                  ) : (
+                    <Empty description="当前 chapter 暂无 section，可先新增 section" />
+                  )}
+                </Space>
               </Card>
             ) : null}
 
@@ -703,6 +909,16 @@ function ReportEditorWorkspace({
                       />
 
                       {templateImportLoading ? <Spin size="small" /> : null}
+
+                      <Select
+                        value={templateApplyMode}
+                        onChange={(value: TemplateApplyMode) => setTemplateApplyMode(value)}
+                        options={[
+                          { label: "追加到当前 Chapter", value: "append-chapter" },
+                          { label: "替换当前 Chapter", value: "replace-chapter" },
+                          { label: "全量替换整个报告", value: "replace-all" },
+                        ]}
+                      />
 
                       {templateImportResult ? (
                         <Alert
@@ -1166,6 +1382,20 @@ function nextSectionKey(sections: ReportDetail["sections"]): string {
   return key;
 }
 
+function nextChapterKey(chapters: ReportChapter[]): string {
+  const base = "chapter_";
+  let idx = chapters.length + 1;
+  let key = `${base}${idx}`;
+
+  const existing = new Set(chapters.map((item) => item.chapter_key));
+  while (existing.has(key)) {
+    idx += 1;
+    key = `${base}${idx}`;
+  }
+
+  return key;
+}
+
 function nextChartId(charts: ReportChart[]): string {
   const base = "chart_";
   let idx = charts.length + 1;
@@ -1252,15 +1482,137 @@ function collectValidationIssues(report: ReportDetail): string[] {
 
 function preserveSectionsAfterSave(updated: ReportDetail, currentDraft: ReportDetail): ReportDetail {
   if ((updated.sections || []).length > 0) {
-    return updated;
+    return {
+      ...updated,
+      chapters: buildChaptersForSave({
+        ...updated,
+        chapters: currentDraft.chapters,
+      }),
+    };
   }
 
   if ((currentDraft.sections || []).length === 0) {
-    return updated;
+    return {
+      ...updated,
+      chapters: buildChaptersForSave({
+        ...updated,
+        sections: updated.sections || [],
+        chapters: currentDraft.chapters,
+      }),
+    };
   }
 
   return {
     ...updated,
     sections: currentDraft.sections,
+    chapters: buildChaptersForSave({
+      ...updated,
+      sections: currentDraft.sections,
+      chapters: currentDraft.chapters,
+    }),
   };
+}
+
+function ensureDraftChapters(report: ReportDetail): ReportChapter[] {
+  if (report.chapters && report.chapters.length > 0) {
+    return report.chapters.map((chapter, index) => ({
+      ...chapter,
+      order: chapter.order || index + 1,
+      status: chapter.status || report.status,
+    }));
+  }
+
+  return [
+    {
+      chapter_key: "chapter_1",
+      title: "Chapter 1",
+      subtitle: null,
+      order: 1,
+      status: report.status,
+      sections: report.sections,
+    },
+  ];
+}
+
+function buildChaptersForSave(report: ReportDetail): ReportChapter[] {
+  const chapterMeta = new Map(ensureDraftChapters(report).map((chapter) => [chapter.chapter_key, chapter]));
+  const grouped = new Map<string, ReportSection[]>();
+
+  (report.sections || []).forEach((section) => {
+    const chapterKey = section.chapter_key || "chapter_1";
+    if (!grouped.has(chapterKey)) {
+      grouped.set(chapterKey, []);
+    }
+    grouped.get(chapterKey)?.push({
+      ...section,
+      chapter_key: undefined,
+    });
+  });
+
+  const orderedKeys = Array.from(chapterMeta.keys());
+  const extraKeys = Array.from(grouped.keys()).filter((key) => !chapterMeta.has(key));
+
+  return [...orderedKeys, ...extraKeys].map((chapterKey, index) => {
+    const meta = chapterMeta.get(chapterKey);
+    return {
+      chapter_key: chapterKey,
+      title: meta?.title || chapterKey,
+      subtitle: meta?.subtitle || null,
+      order: meta?.order || index + 1,
+      status: meta?.status || report.status,
+      sections: grouped.get(chapterKey) || [],
+    };
+  });
+}
+
+function remapTemplateSections(
+  sections: ReportSection[],
+  chapterKey: string,
+  existingSectionKeys: Set<string>,
+  existingChartIds: Set<string>,
+  orderStart: number,
+): ReportSection[] {
+  const sectionKeys = new Set(existingSectionKeys);
+  const chartIds = new Set(existingChartIds);
+
+  return sections.map((section, index) => {
+    const nextSectionKey = nextUniqueId(section.section_key || `section_${index + 1}`, sectionKeys, "section_");
+    sectionKeys.add(nextSectionKey);
+
+    const remappedCharts = (section.content_items?.charts || []).map((chart, chartIndex) => {
+      const nextChartId = nextUniqueId(chart.chart_id || `chart_${chartIndex + 1}`, chartIds, "chart_");
+      chartIds.add(nextChartId);
+
+      return {
+        ...chart,
+        chart_id: nextChartId,
+      };
+    });
+
+    return {
+      ...section,
+      section_key: nextSectionKey,
+      chapter_key: chapterKey,
+      order: orderStart + index + 1,
+      content_items: {
+        charts: remappedCharts,
+      },
+    };
+  });
+}
+
+function nextUniqueId(base: string, existing: Set<string>, prefix: string): string {
+  const normalizedBase = base && base.trim() ? base.trim() : `${prefix}1`;
+  if (!existing.has(normalizedBase)) {
+    return normalizedBase;
+  }
+
+  let seq = 1;
+  let candidate = `${normalizedBase}_${seq}`;
+  while (existing.has(candidate)) {
+    seq += 1;
+    candidate = `${normalizedBase}_${seq}`;
+  }
+
+  return candidate;
 }
