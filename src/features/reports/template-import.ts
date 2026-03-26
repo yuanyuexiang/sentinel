@@ -5,6 +5,8 @@ type RawRow = Record<string, unknown>;
 
 type TemplateKind = "facet" | "timeseries";
 
+type XSemantic = "time" | "numeric" | "unknown";
+
 type TemplateRow = {
   x: string | number | Date | null;
   y: number | null;
@@ -49,6 +51,12 @@ export async function parseTemplateWorkbook(file: File): Promise<TemplateImportR
   });
   const cfg = toConfigMap(cfgRows);
 
+  const dictionarySheet = workbook.Sheets["column_dictionary"];
+  const dictionaryRows = dictionarySheet
+    ? XLSX.utils.sheet_to_json<RawRow>(dictionarySheet, { defval: null, raw: true })
+    : [];
+  const xSemantic = detectXSemanticFromDictionary(dictionaryRows);
+
   const rawDataRows = XLSX.utils.sheet_to_json<RawRow>(dataSheet, {
     defval: null,
     raw: true,
@@ -59,7 +67,7 @@ export async function parseTemplateWorkbook(file: File): Promise<TemplateImportR
   }
 
   const rows = rawDataRows.map(normalizeTemplateRow);
-  const kind = detectTemplateKind(rows);
+  const kind = detectTemplateKind(rows, xSemantic);
   const normalizedRows = normalizeRowsForKind(rows, kind);
   const warnings = collectWarnings(normalizedRows, kind);
 
@@ -165,7 +173,15 @@ function toNumber(input: unknown): number | null {
   return null;
 }
 
-function detectTemplateKind(rows: TemplateRow[]): TemplateKind {
+function detectTemplateKind(rows: TemplateRow[], xSemantic: XSemantic): TemplateKind {
+  if (xSemantic === "time") {
+    return "timeseries";
+  }
+
+  if (xSemantic === "numeric") {
+    return "facet";
+  }
+
   const hasYFormat = rows.some((row) => row.yFormat !== "");
   if (hasYFormat) {
     return "timeseries";
@@ -191,8 +207,15 @@ function normalizeRowsForKind(rows: TemplateRow[], kind: TemplateKind): Template
   }
 
   return rows.map((row) => {
-    if (row.x instanceof Date || row.x === null) {
+    if (row.x === null) {
       return row;
+    }
+
+    if (row.x instanceof Date) {
+      return {
+        ...row,
+        x: formatDateKey(row.x),
+      };
     }
 
     if (typeof row.x === "number") {
@@ -200,7 +223,7 @@ function normalizeRowsForKind(rows: TemplateRow[], kind: TemplateKind): Template
       if (serialDate) {
         return {
           ...row,
-          x: serialDate,
+          x: formatDateKey(serialDate),
         };
       }
     }
@@ -210,7 +233,7 @@ function normalizeRowsForKind(rows: TemplateRow[], kind: TemplateKind): Template
       if (parsed) {
         return {
           ...row,
-          x: parsed,
+          x: formatDateKey(parsed),
         };
       }
     }
@@ -228,7 +251,7 @@ function collectWarnings(rows: TemplateRow[], kind: TemplateKind): string[] {
   }
 
   if (kind === "timeseries") {
-    const invalidDate = rows.filter((row) => !(row.x instanceof Date)).length;
+    const invalidDate = rows.filter((row) => !isValidTimeX(row.x)).length;
     if (invalidDate > 0) {
       warnings.push(`${invalidDate} 行 x 不是日期，已按原值处理`);
     }
@@ -291,8 +314,7 @@ function buildOptionForPanel(rows: TemplateRow[], kind: TemplateKind): Record<st
       ? points
           .filter((item) => item.y !== null)
           .map((item) => {
-            const dateValue = item.x instanceof Date ? item.x.getTime() : item.x;
-            return [dateValue, item.y];
+            return [String(item.x), item.y];
           })
       : xValues.map((xValue) => {
           const y = pointMap.get(String(xValue));
@@ -382,7 +404,7 @@ function buildPointMap(rows: TemplateRow[], kind: TemplateKind): Map<string, num
 
     const key =
       kind === "timeseries"
-        ? String(row.x instanceof Date ? row.x.getTime() : row.x)
+        ? String(row.x)
         : String(row.x);
     map.set(key, row.y);
   });
@@ -479,6 +501,57 @@ function parseDateValue(input: string): Date | null {
     return null;
   }
   return parsed;
+}
+
+function detectXSemanticFromDictionary(rows: RawRow[]): XSemantic {
+  const xRow = rows.find((row) => String(row.column_name || "").trim().toLowerCase() === "x");
+  if (!xRow) {
+    return "unknown";
+  }
+
+  const text = [xRow.chinese_name, xRow.description, xRow.example_values]
+    .map((value) => String(value || "").toLowerCase())
+    .join(" ");
+
+  if (
+    text.includes("日期") ||
+    text.includes("date") ||
+    text.includes("time") ||
+    text.includes("年月")
+  ) {
+    return "time";
+  }
+
+  if (
+    text.includes("连续") ||
+    text.includes("整数") ||
+    text.includes("numeric") ||
+    text.includes("number")
+  ) {
+    return "numeric";
+  }
+
+  return "unknown";
+}
+
+function formatDateKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function isValidTimeX(value: TemplateRow["x"]): boolean {
+  if (value === null) {
+    return false;
+  }
+
+  if (value instanceof Date) {
+    return true;
+  }
+
+  if (typeof value === "string") {
+    return parseDateValue(value) !== null;
+  }
+
+  return false;
 }
 
 function excelSerialToDate(serial: number): Date | null {
