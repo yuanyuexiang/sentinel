@@ -14,8 +14,8 @@ export const reportKeys = {
   all: ["reports"] as const,
   list: () => [...reportKeys.all, "list"] as const,
   detail: (reportKey: string) => [...reportKeys.all, "detail", reportKey] as const,
-  section: (reportKey: string, sectionKey: string) =>
-    [...reportKeys.all, "section", reportKey, sectionKey] as const,
+  section: (reportKey: string, sectionKey: string, filter1?: string, filter2?: string) =>
+    [...reportKeys.all, "section", reportKey, sectionKey, filter1 || "All", filter2 || "All"] as const,
 };
 
 export function useReportsQuery() {
@@ -33,10 +33,14 @@ export function useReportDetailQuery(reportKey: string) {
   });
 }
 
-export function useSectionDetailQuery(reportKey: string, sectionKey: string) {
+export function useSectionDetailQuery(
+  reportKey: string,
+  sectionKey: string,
+  filters?: { filter1?: string; filter2?: string },
+) {
   return useQuery({
-    queryKey: reportKeys.section(reportKey, sectionKey),
-    queryFn: () => getSectionDetail(reportKey, sectionKey),
+    queryKey: reportKeys.section(reportKey, sectionKey, filters?.filter1, filters?.filter2),
+    queryFn: () => getSectionDetail(reportKey, sectionKey, filters),
     enabled: Boolean(reportKey && sectionKey),
   });
 }

@@ -102,13 +102,26 @@ export async function getReportDetail(reportKey: string): Promise<ReportDetail> 
   return normalizeReportDetail(rawDetail, reportKey);
 }
 
-export async function getSectionDetail(reportKey: string, sectionKey: string): Promise<ReportSection> {
+export async function getSectionDetail(
+  reportKey: string,
+  sectionKey: string,
+  filters?: { filter1?: string; filter2?: string },
+): Promise<ReportSection> {
+  const params = new URLSearchParams();
+  if (filters?.filter1) {
+    params.set("filter1", filters.filter1);
+  }
+  if (filters?.filter2) {
+    params.set("filter2", filters.filter2);
+  }
+
+  const suffix = params.toString() ? `?${params.toString()}` : "";
   const payload = await http.get<
     | ReportSection
     | {
         section?: ReportSection;
       }
-  >(`/v1/reports/${reportKey}/sections/${sectionKey}`);
+  >(`/v1/reports/${reportKey}/sections/${sectionKey}${suffix}`);
 
   const payloadObject = payload as {
     section?: ReportSection;

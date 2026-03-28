@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import ReactECharts from "echarts-for-react";
 import {
   Alert,
@@ -24,8 +24,9 @@ import {
   message,
 } from "antd";
 import type { DataNode } from "antd/es/tree";
-import { useReportDetailQuery, useUpdateReportMutation } from "@/features/reports/hooks";
-import { parseTemplateWorkbook, type TemplateImportResult } from "@/features/reports/template-import";
+import { ChartWithFilters } from "@/features/reports/chartWithFilters";
+import { getReportDetail, uploadExcel } from "@/features/reports/api";
+import { useReportDetailQuery, useSectionDetailQuery, useUpdateReportMutation } from "@/features/reports/hooks";
 import type { ReportChapter, ReportChart, ReportDetail, ReportSection } from "@/features/reports/types";
 import { http } from "@/lib/http";
 
@@ -44,7 +45,13 @@ type ChartEditorState = {
   binding: ChartBinding;
 };
 
-type TemplateApplyMode = "append-chapter" | "replace-chapter" | "replace-all";
+type BackendTemplateImportState = {
+  sourceFile: string;
+  parsedCharts: number;
+  parsedPoints: number;
+};
+
+const ALL_FILTER = "All";
 
 export default function ReportEditPage() {
   const { reportKey } = useParams<{ reportKey: string }>();
@@ -100,10 +107,10 @@ function ReportEditorWorkspace({
     return firstSection?.content_items?.charts?.[0]?.chart_id || "";
   });
   const [editorMap, setEditorMap] = useState<Record<string, ChartEditorState>>({});
+  const [sectionFilterMap, setSectionFilterMap] = useState<Record<string, { filter1: string; filter2: string }>>({});
   const [currentStep, setCurrentStep] = useState(0);
-  const [templateImportResult, setTemplateImportResult] = useState<TemplateImportResult | null>(null);
+  const [templateImportResult, setTemplateImportResult] = useState<BackendTemplateImportState | null>(null);
   const [templateImportLoading, setTemplateImportLoading] = useState(false);
-  const [templateApplyMode, setTemplateApplyMode] = useState<TemplateApplyMode>("append-chapter");
 
   const chapters = ensureDraftChapters(draft);
   const sections = [...(draft.sections || [])]
@@ -133,6 +140,46 @@ function ReportEditorWorkspace({
   });
 
   const selectedEditorState = getEditorState(selectedChart, editorMap);
+  const selectedSectionCharts = useMemo(
+    () => selectedSection?.content_items?.charts || [],
+    [selectedSection?.content_items?.charts],
+  );
+  const selectedSectionFilterModel = useMemo(
+    () => buildGlobalFilterModel(selectedSectionCharts),
+    [selectedSectionCharts],
+  );
+  const selectedSectionFilters = useMemo(() => {
+    if (!selectedSection) {
+      return { filter1: ALL_FILTER, filter2: ALL_FILTER };
+    }
+
+    const fromState = sectionFilterMap[selectedSection.section_key];
+    if (fromState) {
+      return fromState;
+    }
+
+    const firstChartMeta = (selectedSectionCharts[0]?.meta || {}) as {
+      selected_filters?: { filter1?: unknown; filter2?: unknown };
+    };
+    return {
+      filter1: String(firstChartMeta.selected_filters?.filter1 || ALL_FILTER),
+      filter2: String(firstChartMeta.selected_filters?.filter2 || ALL_FILTER),
+    };
+  }, [sectionFilterMap, selectedSection, selectedSectionCharts]);
+  const selectedSectionFilter2Options = useMemo(() => {
+    const key = selectedSectionFilterModel.filter1Options.includes(selectedSectionFilters.filter1)
+      ? selectedSectionFilters.filter1
+      : ALL_FILTER;
+    return selectedSectionFilterModel.filter2ByFilter1[key] || [ALL_FILTER];
+  }, [selectedSectionFilterModel, selectedSectionFilters.filter1]);
+  const selectedSectionActiveFilter2 = selectedSectionFilter2Options.includes(selectedSectionFilters.filter2)
+    ? selectedSectionFilters.filter2
+    : selectedSectionFilter2Options[0] || ALL_FILTER;
+  const selectedSectionFilteredQuery = useSectionDetailQuery(reportKey, selectedSection?.section_key || "", {
+    filter1: selectedSectionFilters.filter1,
+    filter2: selectedSectionActiveFilter2,
+  });
+  const selectedSectionDisplayCharts = selectedSectionFilteredQuery.data?.content_items?.charts || selectedSectionCharts;
   const editableRows = getSourceRows(selectedEditorState);
   const rowFields = getRowFields(editableRows);
   const allSections = [...(draft.sections || [])];
@@ -421,6 +468,39 @@ function ReportEditorWorkspace({
     setDraft(nextDraft);
   };
 
+  const updateSectionSelectedFilters = (sectionKey: string, next: { filter1: string; filter2: string }) => {
+    const currentSection = draft.sections.find((item) => item.section_key === sectionKey);
+    const currentChart = currentSection?.content_items?.charts?.[0];
+    const currentMeta = (currentChart?.meta || {}) as { selected_filters?: { filter1?: unknown; filter2?: unknown } };
+    const currentFilter1 = String(currentMeta.selected_filters?.filter1 || ALL_FILTER);
+    const currentFilter2 = String(currentMeta.selected_filters?.filter2 || ALL_FILTER);
+
+    if (currentFilter1 === next.filter1 && currentFilter2 === next.filter2) {
+      return;
+    }
+
+    const nextDraft = cloneReport(draft);
+    const targetSection = nextDraft.sections.find((item) => item.section_key === sectionKey);
+    const targetCharts = targetSection?.content_items?.charts || [];
+
+    if (!targetCharts.length) {
+      return;
+    }
+
+    targetCharts.forEach((chart) => {
+      chart.meta = {
+        ...(chart.meta || {}),
+        selected_filters: {
+          filter1: next.filter1,
+          filter2: next.filter2,
+        },
+      };
+    });
+
+    setSectionFilterMap((prev) => ({ ...prev, [sectionKey]: next }));
+    setDraft(nextDraft);
+  };
+
   const applyBindingToChart = () => {
     if (!selectedSection || !selectedChart || !selectedEditorState) {
       return;
@@ -458,105 +538,29 @@ function ReportEditorWorkspace({
   const importTemplateWorkbook = async (file: File) => {
     try {
       setTemplateImportLoading(true);
-      const result = await parseTemplateWorkbook(file);
-      setTemplateImportResult(result);
-      onSuccess(`模板识别成功：${result.kind}`);
+      const uploadResult = await uploadExcel({ file, reportKey });
+      const latestDetail = await getReportDetail(reportKey);
+
+      setTemplateImportResult({
+        sourceFile: uploadResult.source_file,
+        parsedCharts: uploadResult.parsed_charts,
+        parsedPoints: uploadResult.parsed_points,
+      });
+      setDraft(cloneReport(latestDetail));
+      setEditorMap({});
+
+      const latestSections = [...(latestDetail.sections || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
+      const firstSection = latestSections[0];
+      setSelectedChapterKey(firstSection?.chapter_key || ensureDraftChapters(latestDetail)[0]?.chapter_key || "chapter_1");
+      setSelectedSectionKey(firstSection?.section_key || "");
+      setSelectedChartId(firstSection?.content_items?.charts?.[0]?.chart_id || "");
+
+      onSuccess(`模板上传并组装完成：${uploadResult.parsed_charts} 个图表`);
     } catch (error) {
       onError(`模板解析失败：${http.toErrorMessage(error)}`);
     } finally {
       setTemplateImportLoading(false);
     }
-  };
-
-  const applyTemplateToReport = () => {
-    if (!templateImportResult) {
-      return;
-    }
-
-    const nextDraft = cloneReport(draft);
-
-    const existingSections = nextDraft.sections || [];
-    const existingSectionKeys = new Set(existingSections.map((item) => item.section_key));
-    const existingChartIds = new Set(
-      existingSections.flatMap((section) => (section.content_items?.charts || []).map((chart) => chart.chart_id)),
-    );
-
-    const currentChapterKey = selectedChapterKey || ensureDraftChapters(nextDraft)[0]?.chapter_key || "chapter_1";
-
-    let appliedSections: ReportSection[] = [];
-    if (templateApplyMode === "replace-all") {
-      const importedSections = remapTemplateSections(
-        templateImportResult.sections,
-        "chapter_1",
-        new Set(),
-        new Set(),
-        0,
-      );
-
-      nextDraft.sections = importedSections;
-      nextDraft.chapters = [
-        {
-          chapter_key: "chapter_1",
-          title: templateImportResult.title || "Chapter 1",
-          subtitle: templateImportResult.subtitle || null,
-          order: 1,
-          status: nextDraft.status,
-          sections: importedSections.map((item) => ({ ...item, chapter_key: undefined })),
-        },
-      ];
-      appliedSections = importedSections;
-      setSelectedChapterKey("chapter_1");
-    } else {
-      const chapterSections = existingSections.filter((item) => (item.chapter_key || "chapter_1") === currentChapterKey);
-      const sectionStartOrder =
-        templateApplyMode === "append-chapter"
-          ? Math.max(0, ...chapterSections.map((item) => item.order || 0))
-          : 0;
-
-      const baseSections =
-        templateApplyMode === "replace-chapter"
-          ? existingSections.filter((item) => (item.chapter_key || "chapter_1") !== currentChapterKey)
-          : existingSections;
-
-      const importedSections = remapTemplateSections(
-        templateImportResult.sections,
-        currentChapterKey,
-        existingSectionKeys,
-        existingChartIds,
-        sectionStartOrder,
-      );
-
-      nextDraft.sections = [...baseSections, ...importedSections];
-
-      const chapters = ensureDraftChapters(nextDraft);
-      if (!chapters.some((item) => item.chapter_key === currentChapterKey)) {
-        chapters.push({
-          chapter_key: currentChapterKey,
-          title: currentChapterKey,
-          subtitle: null,
-          order: chapters.length + 1,
-          status: nextDraft.status,
-          sections: [],
-        });
-      }
-
-      nextDraft.chapters = chapters;
-      appliedSections = importedSections;
-      setSelectedChapterKey(currentChapterKey);
-    }
-
-    if (templateImportResult.title) {
-      nextDraft.name = templateImportResult.title;
-    }
-
-    setDraft(nextDraft);
-    setEditorMap({});
-
-    const firstSection = appliedSections[0] || [...nextDraft.sections].sort((a, b) => (a.order || 0) - (b.order || 0))[0];
-    setSelectedSectionKey(firstSection?.section_key || "");
-    setSelectedChartId(firstSection?.content_items?.charts?.[0]?.chart_id || "");
-
-    onSuccess(`已应用模板：${templateImportResult.stats.charts} 个图表`);
   };
 
   const saveDraft = async () => {
@@ -603,14 +607,9 @@ function ReportEditorWorkspace({
     }
 
     if (currentStep === 2) {
-      const hasTemplateImport = Boolean(templateImportResult?.sections.length);
+      const hasTemplateImport = Boolean(templateImportResult);
       const hasDraftSections = Boolean((draft.sections || []).length);
       const hasManualRows = Boolean(selectedEditorState && parseRowsText(selectedEditorState.rowsText).length);
-
-      if (hasTemplateImport && !hasDraftSections && !hasManualRows) {
-        onError("模板已识别，请先点击“应用模板到当前报告”");
-        return;
-      }
 
       if (!hasTemplateImport && !hasManualRows && !hasDraftSections) {
         onError("请先上传模板 xlsx 或输入有效 JSON 数据行");
@@ -659,7 +658,7 @@ function ReportEditorWorkspace({
             {
               title: "数据源",
               content: templateImportResult
-                ? `模板：${templateImportResult.kind}`
+                ? `模板：${templateImportResult.sourceFile}`
                 : selectedEditorState && parseRowsText(selectedEditorState.rowsText).length
                   ? "JSON 已输入"
                   : "待输入",
@@ -782,35 +781,52 @@ function ReportEditorWorkspace({
                     {selectedSection.content || "(无描述文本)"}
                   </Typography.Paragraph>
 
-                  {(selectedSection.content_items?.charts || []).map((chart) => {
-                    const columns =
-                      chart.table_data?.columns?.map((column) => ({
-                        title: column.title,
-                        dataIndex: column.key,
-                        key: column.key,
-                      })) || [];
+                  {selectedSectionFilterModel.hasFilterData ? (
+                    <Space wrap>
+                      <Typography.Text type="secondary">filter1</Typography.Text>
+                      <Select
+                        value={selectedSectionFilters.filter1}
+                        style={{ minWidth: 180 }}
+                        onChange={(value) => {
+                          updateSectionSelectedFilters(selectedSection.section_key, { filter1: value, filter2: ALL_FILTER });
+                        }}
+                        options={selectedSectionFilterModel.filter1Options.map((item) => ({ label: item, value: item }))}
+                      />
+                      <Typography.Text type="secondary">filter2</Typography.Text>
+                      <Select
+                        value={selectedSectionActiveFilter2}
+                        style={{ minWidth: 180 }}
+                        onChange={(value) => {
+                          updateSectionSelectedFilters(selectedSection.section_key, {
+                            filter1: selectedSectionFilters.filter1,
+                            filter2: value,
+                          });
+                        }}
+                        options={selectedSectionFilter2Options.map((item) => ({ label: item, value: item }))}
+                      />
+                      <Button
+                        size="small"
+                        onClick={() => {
+                          updateSectionSelectedFilters(selectedSection.section_key, { filter1: ALL_FILTER, filter2: ALL_FILTER });
+                        }}
+                      >
+                        重置筛选
+                      </Button>
+                    </Space>
+                  ) : (
+                    <Typography.Text type="secondary">当前 section 无可筛选字段（filter1/filter2）。</Typography.Text>
+                  )}
 
+                  {selectedSectionDisplayCharts.map((chart) => {
                     return (
                       <Card key={chart.chart_id} type="inner" title={`${chart.title} (${chart.chart_id})`}>
                         <Space orientation="vertical" style={{ width: "100%" }}>
                           <Tag color={chart.chart_id === selectedChartId ? "processing" : "default"}>{chart.chart_type}</Tag>
 
-                          {chart.chart_type !== "table" && chart.echarts ? (
-                            <ReactECharts option={chart.echarts} notMerge lazyUpdate style={{ width: "100%", height: 320 }} />
-                          ) : null}
-
-                          {chart.chart_type === "table" ? (
-                            <Table
-                              size="small"
-                              pagination={false}
-                              rowKey="__rowKey"
-                              columns={columns}
-                              dataSource={(chart.table_data?.rows || []).map((row, index) => ({
-                                ...row,
-                                __rowKey: `${chart.chart_id}-${index}`,
-                              }))}
-                            />
-                          ) : null}
+                          <ChartWithFilters
+                            chart={chart}
+                            height={320}
+                          />
                         </Space>
                       </Card>
                     );
@@ -905,7 +921,7 @@ function ReportEditorWorkspace({
             {currentStep === 2 ? (
               <Card title="数据源输入" styles={{ body: { maxHeight: 700, overflowY: "auto" } }}>
                 <Space orientation="vertical" style={{ width: "100%" }}>
-                  <Card size="small" title="模板 xlsx 导入（推荐）">
+                  <Card size="small" title="模板 xlsx 导入（后端组装）">
                     <Space orientation="vertical" style={{ width: "100%" }}>
                       <input
                         type="file"
@@ -924,44 +940,28 @@ function ReportEditorWorkspace({
 
                       {templateImportLoading ? <Spin size="small" /> : null}
 
-                      <Select
-                        value={templateApplyMode}
-                        onChange={(value: TemplateApplyMode) => setTemplateApplyMode(value)}
-                        options={[
-                          { label: "追加到当前 Chapter", value: "append-chapter" },
-                          { label: "替换当前 Chapter", value: "replace-chapter" },
-                          { label: "全量替换整个报告", value: "replace-all" },
-                        ]}
-                      />
-
                       {templateImportResult ? (
                         <Alert
                           type="success"
                           showIcon
-                          message={`模板识别：${templateImportResult.kind}`}
+                          message="模板已上传并由后端完成组装"
                           description={
                             <Space orientation="vertical" size={4}>
                               <Typography.Text>
-                                图表：{templateImportResult.stats.charts}，数据点：{templateImportResult.stats.points}
+                                文件：{templateImportResult.sourceFile}
                               </Typography.Text>
-                              {templateImportResult.warnings.map((warning) => (
-                                <Typography.Text key={warning} type="warning">
-                                  - {warning}
-                                </Typography.Text>
-                              ))}
-                              {!draft.sections.length ? (
-                                <Typography.Text type="danger">请点击下方“应用模板到当前报告”，否则不会写入 section/chart。</Typography.Text>
-                              ) : null}
+                              <Typography.Text>
+                                图表：{templateImportResult.parsedCharts}，数据点：{templateImportResult.parsedPoints}
+                              </Typography.Text>
+                              <Typography.Text type="secondary">
+                                已自动刷新当前报告草稿，无需再手动“应用模板”。
+                              </Typography.Text>
                             </Space>
                           }
                         />
                       ) : (
-                        <Alert type="info" showIcon message="上传模板后可自动生成 section/chart 与 ECharts option。" />
+                        <Alert type="info" showIcon message="上传后端模板后，会自动生成 section/chart 与 ECharts option。" />
                       )}
-
-                      <Button type="primary" onClick={applyTemplateToReport} disabled={!templateImportResult}>
-                        应用模板到当前报告
-                      </Button>
                     </Space>
                   </Card>
 
@@ -1147,6 +1147,77 @@ function ReportEditorWorkspace({
 
 function cloneReport(report: ReportDetail): ReportDetail {
   return JSON.parse(JSON.stringify(report)) as ReportDetail;
+}
+
+function buildGlobalFilterModel(charts: ReportChart[]) {
+  const filter1Set = new Set<string>([ALL_FILTER]);
+  const filter2AllSet = new Set<string>([ALL_FILTER]);
+  const pairs = new Map<string, Set<string>>();
+  let hasFilterData = false;
+
+  charts.forEach((chart) => {
+    const meta = (chart.meta || {}) as {
+      filters?: { filter1?: unknown; filter2?: unknown };
+      source_rows?: unknown;
+    };
+
+    const f1 = Array.isArray(meta.filters?.filter1) ? meta.filters?.filter1 : [];
+    const f2 = Array.isArray(meta.filters?.filter2) ? meta.filters?.filter2 : [];
+
+    f1.forEach((item) => {
+      const v = toFilterText(item);
+      if (v) {
+        filter1Set.add(v);
+        hasFilterData = true;
+      }
+    });
+    f2.forEach((item) => {
+      const v = toFilterText(item);
+      if (v) {
+        filter2AllSet.add(v);
+        hasFilterData = true;
+      }
+    });
+
+    const rows = Array.isArray(meta.source_rows) ? (meta.source_rows as Array<Record<string, unknown>>) : [];
+    rows.forEach((row) => {
+      const left = toFilterText(row.filter1) || ALL_FILTER;
+      const right = toFilterText(row.filter2) || ALL_FILTER;
+      hasFilterData = hasFilterData || Boolean(toFilterText(row.filter1) || toFilterText(row.filter2));
+      filter1Set.add(left);
+      filter2AllSet.add(right);
+
+      if (!pairs.has(left)) {
+        pairs.set(left, new Set<string>([ALL_FILTER]));
+      }
+      pairs.get(left)?.add(right);
+    });
+  });
+
+  const filter1Options = Array.from(filter1Set);
+  const allFilter2 = Array.from(filter2AllSet);
+  const filter2ByFilter1: Record<string, string[]> = {};
+
+  filter2ByFilter1[ALL_FILTER] = allFilter2;
+  filter1Options.forEach((f1) => {
+    if (f1 === ALL_FILTER) {
+      return;
+    }
+    filter2ByFilter1[f1] = Array.from(pairs.get(f1) || new Set<string>([ALL_FILTER]));
+  });
+
+  return {
+    hasFilterData,
+    filter1Options,
+    filter2ByFilter1,
+  };
+}
+
+function toFilterText(input: unknown): string {
+  if (input === null || input === undefined) {
+    return "";
+  }
+  return String(input).trim();
 }
 
 function getEditorState(
@@ -1577,56 +1648,4 @@ function buildChaptersForSave(report: ReportDetail): ReportChapter[] {
       sections: grouped.get(chapterKey) || [],
     };
   });
-}
-
-function remapTemplateSections(
-  sections: ReportSection[],
-  chapterKey: string,
-  existingSectionKeys: Set<string>,
-  existingChartIds: Set<string>,
-  orderStart: number,
-): ReportSection[] {
-  const sectionKeys = new Set(existingSectionKeys);
-  const chartIds = new Set(existingChartIds);
-
-  return sections.map((section, index) => {
-    const nextSectionKey = nextUniqueId(section.section_key || `section_${index + 1}`, sectionKeys, "section_");
-    sectionKeys.add(nextSectionKey);
-
-    const remappedCharts = (section.content_items?.charts || []).map((chart, chartIndex) => {
-      const nextChartId = nextUniqueId(chart.chart_id || `chart_${chartIndex + 1}`, chartIds, "chart_");
-      chartIds.add(nextChartId);
-
-      return {
-        ...chart,
-        chart_id: nextChartId,
-      };
-    });
-
-    return {
-      ...section,
-      section_key: nextSectionKey,
-      chapter_key: chapterKey,
-      order: orderStart + index + 1,
-      content_items: {
-        charts: remappedCharts,
-      },
-    };
-  });
-}
-
-function nextUniqueId(base: string, existing: Set<string>, prefix: string): string {
-  const normalizedBase = base && base.trim() ? base.trim() : `${prefix}1`;
-  if (!existing.has(normalizedBase)) {
-    return normalizedBase;
-  }
-
-  let seq = 1;
-  let candidate = `${normalizedBase}_${seq}`;
-  while (existing.has(candidate)) {
-    seq += 1;
-    candidate = `${normalizedBase}_${seq}`;
-  }
-
-  return candidate;
 }
