@@ -13,6 +13,11 @@ const menuItems = [
     icon: <FileSearchOutlined />,
     label: <Link href="/reports">报告列表</Link>,
   },
+  {
+    key: "/reports/upload",
+    icon: <AppstoreOutlined />,
+    label: <Link href="/reports/upload">模板上传</Link>,
+  },
 ];
 
 type AppShellProps = {
@@ -74,6 +79,10 @@ function getCurrentLabel(pathname: string): string {
 
   if (pathname === "/reports/new") {
     return "新建报告";
+  }
+
+  if (pathname === "/reports/upload") {
+    return "模板上传";
   }
 
   if (pathname.endsWith("/edit")) {

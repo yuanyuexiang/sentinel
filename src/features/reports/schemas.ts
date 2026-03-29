@@ -19,6 +19,24 @@ export const uploadExcelResultSchema = z.object({
   parsed_points: z.number(),
 });
 
+export const uploadFolderFileResultSchema = z.object({
+  source_file: z.string(),
+  chapter_key: z.string().nullable().optional(),
+  section_key: z.string().nullable().optional(),
+  parsed_charts: z.number().default(0),
+  parsed_points: z.number().default(0),
+  status: z.string(),
+  detail: z.string().nullable().optional(),
+});
+
+export const uploadFolderResultSchema = z.object({
+  report_key: z.string(),
+  total_files: z.number(),
+  succeeded_files: z.number(),
+  failed_files: z.number(),
+  files: z.array(uploadFolderFileResultSchema),
+});
+
 export const saveReportResultSchema = z.object({
   report_key: z.string(),
   payload_hash: z.string().optional(),

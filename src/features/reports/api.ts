@@ -5,6 +5,7 @@ import {
   reportListSchema,
   reportSectionSchema,
   saveReportResultSchema,
+  uploadFolderResultSchema,
   uploadExcelResultSchema,
 } from "@/features/reports/schemas";
 import type {
@@ -14,6 +15,7 @@ import type {
   ReportListItem,
   ReportSection,
   SaveReportResult,
+  UploadFolderResult,
   UpdateReportInput,
   UploadExcelResult,
 } from "@/features/reports/types";
@@ -73,6 +75,34 @@ export async function uploadExcel(input: {
   });
 
   return uploadExcelResultSchema.parse(payload);
+}
+
+export async function uploadFolder(input: {
+  files: File[];
+  reportKey?: string;
+  mode?: "replace" | "append";
+  onUploadProgress?: (event: AxiosProgressEvent) => void;
+}): Promise<UploadFolderResult> {
+  const formData = new FormData();
+
+  input.files.forEach((file) => {
+    formData.append("files", file);
+  });
+
+  if (input.reportKey) {
+    formData.append("report_key", input.reportKey);
+  }
+
+  formData.append("mode", input.mode || "replace");
+
+  const payload = await http.post<UploadFolderResult, FormData>("/v1/reports/upload-folder", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+    onUploadProgress: input.onUploadProgress,
+  });
+
+  return uploadFolderResultSchema.parse(payload);
 }
 
 export async function saveReport(
@@ -303,7 +333,7 @@ function extractChapters(
     return fallbackChapters.map((chapter, index) => ({
       ...chapter,
       order: chapter.order || index + 1,
-        status: chapter.status || rawDetail.status || "active",
+      status: chapter.status || rawDetail.status || "active",
     }));
   }
 

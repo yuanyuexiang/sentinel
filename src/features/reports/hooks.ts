@@ -5,6 +5,7 @@ import {
   getReportDetail,
   getReports,
   getSectionDetail,
+  uploadFolder,
   updateReport,
   uploadExcel,
 } from "@/features/reports/api";
@@ -50,6 +51,17 @@ export function useUploadExcelMutation() {
 
   return useMutation({
     mutationFn: uploadExcel,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: reportKeys.list() });
+    },
+  });
+}
+
+export function useUploadFolderMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: uploadFolder,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: reportKeys.list() });
     },

@@ -102,6 +102,9 @@ export default function ReportsPage() {
         title="报告列表"
         extra={
           <Space>
+            <Link href="/reports/upload">
+              <Button type="dashed">上传模板</Button>
+            </Link>
             <Link href="/reports/new">
               <Button>新建 Report</Button>
             </Link>

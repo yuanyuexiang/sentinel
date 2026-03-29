@@ -15,6 +15,24 @@ export type UploadExcelResult = {
   parsed_points: number;
 };
 
+export type UploadFolderFileResult = {
+  source_file: string;
+  chapter_key?: string | null;
+  section_key?: string | null;
+  parsed_charts: number;
+  parsed_points: number;
+  status: string;
+  detail?: string | null;
+};
+
+export type UploadFolderResult = {
+  report_key: string;
+  total_files: number;
+  succeeded_files: number;
+  failed_files: number;
+  files: UploadFolderFileResult[];
+};
+
 export type SaveReportResult = {
   report_key: string;
   payload_hash?: string;
