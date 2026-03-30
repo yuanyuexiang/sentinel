@@ -37,6 +37,31 @@ export const uploadFolderResultSchema = z.object({
   files: z.array(uploadFolderFileResultSchema),
 });
 
+export const uploadFolderTaskAcceptedSchema = z.object({
+  task_id: z.string(),
+  report_key: z.string(),
+  status: z.string(),
+  total_files: z.number(),
+  submitted_at: z.string(),
+});
+
+export const uploadFolderTaskStatusSchema = z.object({
+  task_id: z.string(),
+  report_key: z.string(),
+  status: z.string(),
+  phase: z.string(),
+  total_files: z.number(),
+  processed_files: z.number(),
+  succeeded_files: z.number(),
+  failed_files: z.number(),
+  submitted_at: z.string(),
+  started_at: z.string().nullable().optional(),
+  finished_at: z.string().nullable().optional(),
+  files: z.array(uploadFolderFileResultSchema),
+  detail: z.string().nullable().optional(),
+  result: uploadFolderResultSchema.nullable().optional(),
+});
+
 export const saveReportResultSchema = z.object({
   report_key: z.string(),
   payload_hash: z.string().optional(),

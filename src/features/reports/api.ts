@@ -5,6 +5,8 @@ import {
   reportListSchema,
   reportSectionSchema,
   saveReportResultSchema,
+  uploadFolderTaskAcceptedSchema,
+  uploadFolderTaskStatusSchema,
   uploadFolderResultSchema,
   uploadExcelResultSchema,
 } from "@/features/reports/schemas";
@@ -15,10 +17,21 @@ import type {
   ReportListItem,
   ReportSection,
   SaveReportResult,
+  UploadFolderTaskAccepted,
+  UploadFolderTaskStatus,
   UploadFolderResult,
   UpdateReportInput,
   UploadExcelResult,
 } from "@/features/reports/types";
+
+const UPLOAD_FOLDER_POLL_INTERVAL_MS = 1500;
+const UPLOAD_FOLDER_POLL_TIMEOUT_MS = 15 * 60 * 1000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
 
 type ReportListResponse =
   | {
@@ -79,7 +92,8 @@ export async function uploadExcel(input: {
 
 export async function uploadFolder(input: {
   files: File[];
-  reportKey?: string;
+  reportKey: string;
+  reportName: string;
   mode?: "replace" | "append";
   onUploadProgress?: (event: AxiosProgressEvent) => void;
 }): Promise<UploadFolderResult> {
@@ -89,20 +103,49 @@ export async function uploadFolder(input: {
     formData.append("files", file);
   });
 
-  if (input.reportKey) {
-    formData.append("report_key", input.reportKey);
-  }
+  formData.append("report_key", input.reportKey);
+  formData.append("report_name", input.reportName);
 
   formData.append("mode", input.mode || "replace");
 
-  const payload = await http.post<UploadFolderResult, FormData>("/v1/reports/upload-folder", formData, {
+  const acceptedPayload = await http.post<UploadFolderTaskAccepted, FormData>("/v1/reports/upload-folder", formData, {
     headers: {
       "Content-Type": "multipart/form-data",
     },
+    timeout: 0,
     onUploadProgress: input.onUploadProgress,
   });
 
-  return uploadFolderResultSchema.parse(payload);
+  const accepted = uploadFolderTaskAcceptedSchema.parse(acceptedPayload);
+
+  const deadline = Date.now() + UPLOAD_FOLDER_POLL_TIMEOUT_MS;
+
+  while (Date.now() < deadline) {
+    const statusPayload = await http.get<UploadFolderTaskStatus>(
+      `/v1/reports/upload-folder/tasks/${accepted.task_id}`,
+      { timeout: 0 },
+    );
+    const taskStatus = uploadFolderTaskStatusSchema.parse(statusPayload);
+
+    if (taskStatus.status === "succeeded") {
+      const finalResult = taskStatus.result || {
+        report_key: taskStatus.report_key,
+        total_files: taskStatus.total_files,
+        succeeded_files: taskStatus.succeeded_files,
+        failed_files: taskStatus.failed_files,
+        files: taskStatus.files,
+      };
+      return uploadFolderResultSchema.parse(finalResult);
+    }
+
+    if (taskStatus.status === "failed") {
+      throw new Error(taskStatus.detail || "文件夹上传任务执行失败");
+    }
+
+    await sleep(UPLOAD_FOLDER_POLL_INTERVAL_MS);
+  }
+
+  throw new Error("文件夹上传任务等待超时，请稍后在报告列表中检查结果");
 }
 
 export async function saveReport(

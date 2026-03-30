@@ -38,7 +38,8 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 type FolderFormValues = {
-  reportKey?: string;
+  reportKey: string;
+  reportName: string;
   mode: "replace" | "append";
 };
 
@@ -248,7 +249,7 @@ export default function ReportUploadPage() {
                   <Form
                     form={folderForm}
                     layout="vertical"
-                    initialValues={{ mode: "replace" }}
+                    initialValues={{ reportKey: "", reportName: "", mode: "replace" }}
                     onFinish={async (values) => {
                       if (!selectedFolderFiles.length) {
                         messageApi.error("请先选择文件夹");
@@ -266,9 +267,13 @@ export default function ReportUploadPage() {
                       setFolderProgress(0);
 
                       try {
+                        const normalizedReportKey = values.reportKey.trim();
+                        const normalizedReportName = values.reportName.trim();
+
                         const result = await uploadFolderMutation.mutateAsync({
                           files: selectedFolderFiles,
-                          reportKey: values.reportKey?.trim() || undefined,
+                          reportKey: normalizedReportKey,
+                          reportName: normalizedReportName,
                           mode: values.mode,
                           onUploadProgress: (event) => {
                             if (event.total) {
@@ -297,8 +302,38 @@ export default function ReportUploadPage() {
                       }
                     }}
                   >
-                    <Form.Item label="Report Key（可选）" name="reportKey">
+                    <Form.Item
+                      label="Report Key"
+                      name="reportKey"
+                      rules={[
+                        { required: true, message: "请填写 Report Key" },
+                        {
+                          validator: async (_, value: string | undefined) => {
+                            if (!value || value.trim().length === 0) {
+                              throw new Error("请填写 Report Key");
+                            }
+                          },
+                        },
+                      ]}
+                    >
                       <Input placeholder="report20260327" />
+                    </Form.Item>
+
+                    <Form.Item
+                      label="Report Name"
+                      name="reportName"
+                      rules={[
+                        { required: true, message: "请填写 Report Name" },
+                        {
+                          validator: async (_, value: string | undefined) => {
+                            if (!value || value.trim().length === 0) {
+                              throw new Error("请填写 Report Name");
+                            }
+                          },
+                        },
+                      ]}
+                    >
+                      <Input placeholder="2026 Q1 Loan Performance" />
                     </Form.Item>
 
                     <Form.Item label="写入模式" name="mode">
