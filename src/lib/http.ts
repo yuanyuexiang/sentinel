@@ -8,11 +8,11 @@ const client = axios.create({
 
 function getApiBaseUrl(): string {
   const prefix = process.env.NEXT_PUBLIC_API_PREFIX || "/consultant/api";
+  const isProduction = process.env.NODE_ENV === "production";
 
   if (typeof window !== "undefined") {
-    // In deployment, backend is exposed on the same host under /consultant/api.
-    // Prefer direct same-origin path to avoid rewrite/runtime mismatch issues.
-    return prefix;
+    // Local dev relies on Next rewrite proxy; production uses same-origin backend prefix.
+    return isProduction ? prefix : "/api/proxy";
   }
 
   return ensureBaseUrl();
