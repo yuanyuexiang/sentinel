@@ -7,23 +7,28 @@ const client = axios.create({
 });
 
 function getApiBaseUrl(): string {
+  const prefix = process.env.NEXT_PUBLIC_API_PREFIX || "/consultant/api";
+
   if (typeof window !== "undefined") {
-    // Browser always calls Next.js same-origin proxy to avoid CORS.
-    return "/api/proxy";
+    // In deployment, backend is exposed on the same host under /consultant/api.
+    // Prefer direct same-origin path to avoid rewrite/runtime mismatch issues.
+    return prefix;
   }
 
   return ensureBaseUrl();
 }
 
 function ensureBaseUrl(): string {
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-  const prefix = process.env.NEXT_PUBLIC_API_PREFIX;
+  const rawBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  const prefix = process.env.NEXT_PUBLIC_API_PREFIX || "/consultant/api";
 
-  if (!baseUrl || !prefix) {
-    throw new Error("Missing NEXT_PUBLIC_API_BASE_URL or NEXT_PUBLIC_API_PREFIX");
+  // Keep localhost fallback for local dev when env var is not provided.
+  if (rawBaseUrl === undefined) {
+    return `http://127.0.0.1:8000${prefix}`;
   }
 
-  return `${baseUrl}${prefix}`;
+  const baseUrl = rawBaseUrl.trim();
+  return baseUrl ? `${baseUrl}${prefix}` : prefix;
 }
 
 function toErrorMessage(input: unknown): string {

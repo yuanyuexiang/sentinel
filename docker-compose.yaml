@@ -3,6 +3,9 @@ services:
     container_name: sentinel
     image: yuanyuexiang/sentinel:v2
     restart: always
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: "http://admin.192.168.86.30.nip.io"
+      NEXT_PUBLIC_API_PREFIX: "/consultant/api"
     healthcheck:
       disable: true
     ports:

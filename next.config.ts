@@ -9,13 +9,22 @@ const nextConfig: NextConfig = {
   },
 
   async rewrites() {
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
+    const rawBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
     const prefix = process.env.NEXT_PUBLIC_API_PREFIX || "/consultant/api";
+    const isProduction = process.env.NODE_ENV === "production";
+    // In Docker/Traefik deployment, route through same-origin gateway path.
+    // This prevents build-time localhost env from being baked into proxy destination.
+    const baseUrl = isProduction
+      ? ""
+      : rawBaseUrl === undefined
+        ? "http://127.0.0.1:8000"
+        : rawBaseUrl.trim();
+    const targetPrefix = baseUrl ? `${baseUrl}${prefix}` : prefix;
 
     return [
       {
         source: "/api/proxy/:path*",
-        destination: `${baseUrl}${prefix}/:path*`,
+        destination: `${targetPrefix}/:path*`,
       },
     ];
   },
