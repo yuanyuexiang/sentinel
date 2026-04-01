@@ -177,6 +177,7 @@ export async function getReportDetail(reportKey: string): Promise<ReportDetail> 
 
 export async function getSectionDetail(
   reportKey: string,
+  chapterKey: string,
   sectionKey: string,
   filters?: { filter1?: string; filter2?: string },
 ): Promise<ReportSection> {
@@ -194,7 +195,7 @@ export async function getSectionDetail(
     | {
         section?: ReportSection;
       }
-  >(`/v1/reports/${reportKey}/sections/${sectionKey}${suffix}`);
+  >(`/v1/reports/${reportKey}/chapters/${chapterKey}/sections/${sectionKey}${suffix}`);
 
   const payloadObject = payload as {
     section?: ReportSection;

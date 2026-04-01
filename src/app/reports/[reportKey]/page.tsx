@@ -94,11 +94,12 @@ export default function ReportDetailPage() {
             <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
               {orderedSections.map((section) => {
                 const charts = section.content_items?.charts || [];
+                const sectionDomKey = `${section.chapter_key || "chapter_1"}-${section.section_key}`;
 
                 return (
                   <Card
-                    key={section.section_key}
-                    id={`section-${section.section_key}`}
+                    key={sectionDomKey}
+                    id={`section-${sectionDomKey}`}
                     type="inner"
                     title={
                       <Space>
@@ -146,10 +147,15 @@ function SectionCharts({ reportKey, section }: { reportKey: string; section: Rep
   const [filter2, setFilter2] = useState<string>(ALL_FILTER);
   const activeFilter2 = filter2Options.includes(filter2) ? filter2 : filter2Options[0] || ALL_FILTER;
 
-  const filteredSectionQuery = useSectionDetailQuery(reportKey, section.section_key, {
+  const filteredSectionQuery = useSectionDetailQuery(
+    reportKey,
+    section.chapter_key || "chapter_1",
+    section.section_key,
+    {
     filter1,
     filter2: activeFilter2,
-  });
+    },
+  );
 
   const filteredCharts = filteredSectionQuery.data?.content_items?.charts || charts;
 

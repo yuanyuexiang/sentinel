@@ -175,10 +175,15 @@ function ReportEditorWorkspace({
   const selectedSectionActiveFilter2 = selectedSectionFilter2Options.includes(selectedSectionFilters.filter2)
     ? selectedSectionFilters.filter2
     : selectedSectionFilter2Options[0] || ALL_FILTER;
-  const selectedSectionFilteredQuery = useSectionDetailQuery(reportKey, selectedSection?.section_key || "", {
-    filter1: selectedSectionFilters.filter1,
-    filter2: selectedSectionActiveFilter2,
-  });
+  const selectedSectionFilteredQuery = useSectionDetailQuery(
+    reportKey,
+    selectedSection?.chapter_key || selectedChapterKey || "chapter_1",
+    selectedSection?.section_key || "",
+    {
+      filter1: selectedSectionFilters.filter1,
+      filter2: selectedSectionActiveFilter2,
+    },
+  );
   const selectedSectionDisplayCharts = selectedSectionFilteredQuery.data?.content_items?.charts || selectedSectionCharts;
   const editableRows = getSourceRows(selectedEditorState);
   const rowFields = getRowFields(editableRows);
