@@ -3,6 +3,10 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // 启用 standalone 输出用于 Docker 部署
   output: 'standalone',
+  turbopack: {
+    // Pin Turbopack root to this app to avoid monorepo lockfile mis-detection.
+    root: process.cwd(),
+  },
   experimental: {
     // Allow large multipart folder uploads through /api/proxy rewrites.
     proxyClientMaxBodySize: "100mb",
