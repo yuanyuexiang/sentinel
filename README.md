@@ -56,4 +56,4 @@ npm run build
 
 当前版本已通过 lint 与 build 验证。
 
-docker buildx build --platform linux/amd64,linux/arm64 -t yuanyuexiang/sentinel:v4 .
+docker buildx build --platform linux/amd64,linux/arm64 -t auricintelligence/sentinel:v10 .
