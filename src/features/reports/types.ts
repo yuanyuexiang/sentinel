@@ -73,6 +73,25 @@ export type ReportChart = {
   table_data?: {
     columns?: Array<{ key: string; title: string; align?: string }>;
     rows?: Array<Record<string, unknown>>;
+    presentation?: {
+      cell_styles?: Array<{
+        row_index: number;
+        column: string;
+        tokens: string[];
+      }>;
+      header_groups?: Array<{
+        group_name: string;
+        start_col: string;
+        end_col: string;
+        bg_color?: string;
+        font_color?: string;
+      }>;
+      style_warnings?: Array<{
+        row_index: number;
+        column: string;
+        unknown_tokens: string[];
+      }>;
+    };
   } | null;
   meta?: Record<string, unknown>;
 };

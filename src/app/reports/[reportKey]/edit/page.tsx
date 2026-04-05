@@ -184,7 +184,10 @@ function ReportEditorWorkspace({
       filter2: selectedSectionActiveFilter2,
     },
   );
-  const selectedSectionDisplayCharts = selectedSectionFilteredQuery.data?.content_items?.charts || selectedSectionCharts;
+  const selectedSectionDisplayCharts = useMemo(() => {
+    const nextCharts = selectedSectionFilteredQuery.data?.content_items?.charts || selectedSectionCharts;
+    return mergeChartPresentation(nextCharts, selectedSectionCharts);
+  }, [selectedSectionFilteredQuery.data?.content_items?.charts, selectedSectionCharts]);
   const editableRows = getSourceRows(selectedEditorState);
   const rowFields = getRowFields(editableRows);
   const allSections = [...(draft.sections || [])];
@@ -822,20 +825,10 @@ function ReportEditorWorkspace({
                     <Typography.Text type="secondary">当前 section 无可筛选字段（filter1/filter2）。</Typography.Text>
                   )}
 
-                  {selectedSectionDisplayCharts.map((chart) => {
-                    return (
-                      <Card key={chart.chart_id} type="inner" title={`${chart.title} (${chart.chart_id})`}>
-                        <Space orientation="vertical" style={{ width: "100%" }}>
-                          <Tag color={chart.chart_id === selectedChartId ? "processing" : "default"}>{chart.chart_type}</Tag>
-
-                          <ChartWithFilters
-                            chart={chart}
-                            height={320}
-                          />
-                        </Space>
-                      </Card>
-                    );
-                  })}
+                  <SectionPreviewCharts
+                    charts={selectedSectionDisplayCharts}
+                    selectedChartId={selectedChartId}
+                  />
                 </Space>
               ) : (
                 <Empty description="请先从左侧结构树选择一个 section" />
@@ -1148,6 +1141,70 @@ function ReportEditorWorkspace({
       </Card>
     </Space>
   );
+}
+
+function SectionPreviewCharts({ charts, selectedChartId }: { charts: ReportChart[]; selectedChartId: string }) {
+  const lineCharts = charts.filter((chart) => chart.chart_type !== "table");
+  const tableCharts = charts.filter((chart) => chart.chart_type === "table");
+
+  const renderCard = (chart: ReportChart) => (
+    <Card key={chart.chart_id} type="inner" title={`${chart.title} (${chart.chart_id})`}>
+      <Space orientation="vertical" style={{ width: "100%" }}>
+        <Tag color={chart.chart_id === selectedChartId ? "processing" : "default"}>{chart.chart_type}</Tag>
+        <ChartWithFilters
+          chart={chart}
+          height={320}
+        />
+      </Space>
+    </Card>
+  );
+
+  return (
+    <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
+      {lineCharts.length ? (
+        <Row gutter={[16, 16]}>
+          {lineCharts.map((chart) => (
+            <Col key={chart.chart_id} xs={24} md={12}>
+              {renderCard(chart)}
+            </Col>
+          ))}
+        </Row>
+      ) : null}
+
+      {tableCharts.map((chart) => renderCard(chart))}
+    </Space>
+  );
+}
+
+function mergeChartPresentation(nextCharts: ReportChart[], fallbackCharts: ReportChart[]): ReportChart[] {
+  const fallbackById = new Map(fallbackCharts.map((chart) => [chart.chart_id, chart]));
+
+  return nextCharts.map((chart) => {
+    if (chart.chart_type !== "table") {
+      return chart;
+    }
+
+    const fallback = fallbackById.get(chart.chart_id);
+    const nextTable = chart.table_data;
+    const fallbackTable = fallback?.table_data;
+
+    if (!nextTable || !fallbackTable) {
+      return chart;
+    }
+
+    if (nextTable.presentation) {
+      return chart;
+    }
+
+    return {
+      ...chart,
+      table_data: {
+        ...fallbackTable,
+        ...nextTable,
+        presentation: fallbackTable.presentation,
+      },
+    };
+  });
 }
 
 function cloneReport(report: ReportDetail): ReportDetail {

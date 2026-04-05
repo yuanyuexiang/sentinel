@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { Button, Card, Descriptions, Empty, Modal, Space, Typography, message } from "antd";
+import { Button, Card, Col, Descriptions, Empty, Modal, Row, Space, Typography, message } from "antd";
 import { Select } from "antd";
 import { ChartWithFilters } from "@/features/reports/chartWithFilters";
 import {
@@ -157,7 +157,43 @@ function SectionCharts({ reportKey, section }: { reportKey: string; section: Rep
     },
   );
 
-  const filteredCharts = filteredSectionQuery.data?.content_items?.charts || charts;
+  const filteredChartsRaw = filteredSectionQuery.data?.content_items?.charts || charts;
+  const filteredCharts = useMemo(
+    () => mergeChartPresentation(filteredChartsRaw, charts),
+    [filteredChartsRaw, charts],
+  );
+  const lineCharts = filteredCharts.filter((chart) => chart.chart_type !== "table");
+  const tableCharts = filteredCharts.filter((chart) => chart.chart_type === "table");
+
+  const renderChartCard = (chart: ReportChart) => (
+    <Card
+      key={chart.chart_id}
+      type="inner"
+      title={
+        <Space>
+          <Typography.Text strong>{chart.title}</Typography.Text>
+          <Typography.Text type="secondary">({chart.chart_id})</Typography.Text>
+          <Typography.Text type="secondary">{chart.chart_type}</Typography.Text>
+        </Space>
+      }
+    >
+      <Space orientation="vertical" style={{ width: "100%" }}>
+        <Space size={[8, 8]} wrap>
+          {typeof chart.meta?.formatter === "string" ? (
+            <Typography.Text type="secondary">formatter: {chart.meta.formatter}</Typography.Text>
+          ) : null}
+          {typeof chart.meta?.metric_name === "string" ? (
+            <Typography.Text type="secondary">metric: {chart.meta.metric_name}</Typography.Text>
+          ) : null}
+        </Space>
+
+        <ChartWithFilters
+          chart={chart}
+          height={380}
+        />
+      </Space>
+    </Card>
+  );
 
   return (
     <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
@@ -194,39 +230,51 @@ function SectionCharts({ reportKey, section }: { reportKey: string; section: Rep
         <Typography.Text type="secondary">当前 section 无可筛选字段（filter1/filter2）。</Typography.Text>
       )}
 
-      {filteredCharts.map((chart) => {
-        return (
-          <Card
-            key={chart.chart_id}
-            type="inner"
-            title={
-              <Space>
-                <Typography.Text strong>{chart.title}</Typography.Text>
-                <Typography.Text type="secondary">({chart.chart_id})</Typography.Text>
-                <Typography.Text type="secondary">{chart.chart_type}</Typography.Text>
-              </Space>
-            }
-          >
-            <Space orientation="vertical" style={{ width: "100%" }}>
-              <Space size={[8, 8]} wrap>
-                {typeof chart.meta?.formatter === "string" ? (
-                  <Typography.Text type="secondary">formatter: {chart.meta.formatter}</Typography.Text>
-                ) : null}
-                {typeof chart.meta?.metric_name === "string" ? (
-                  <Typography.Text type="secondary">metric: {chart.meta.metric_name}</Typography.Text>
-                ) : null}
-              </Space>
+      {lineCharts.length ? (
+        <Row gutter={[16, 16]}>
+          {lineCharts.map((chart) => (
+            <Col key={chart.chart_id} xs={24} md={12}>
+              {renderChartCard(chart)}
+            </Col>
+          ))}
+        </Row>
+      ) : null}
 
-              <ChartWithFilters
-                chart={chart}
-                height={380}
-              />
-            </Space>
-          </Card>
-        );
-      })}
+      {tableCharts.map((chart) => renderChartCard(chart))}
     </Space>
   );
+}
+
+function mergeChartPresentation(nextCharts: ReportChart[], fallbackCharts: ReportChart[]): ReportChart[] {
+  const fallbackById = new Map(fallbackCharts.map((chart) => [chart.chart_id, chart]));
+
+  return nextCharts.map((chart) => {
+    if (chart.chart_type !== "table") {
+      return chart;
+    }
+
+    const fallback = fallbackById.get(chart.chart_id);
+    const nextTable = chart.table_data;
+    const fallbackTable = fallback?.table_data;
+
+    if (!nextTable || !fallbackTable) {
+      return chart;
+    }
+
+    const hasPresentation = Boolean(nextTable.presentation);
+    if (hasPresentation) {
+      return chart;
+    }
+
+    return {
+      ...chart,
+      table_data: {
+        ...fallbackTable,
+        ...nextTable,
+        presentation: fallbackTable.presentation,
+      },
+    };
+  });
 }
 
 function buildGlobalFilterModel(charts: ReportChart[]) {

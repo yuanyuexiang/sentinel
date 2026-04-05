@@ -86,6 +86,39 @@ export const reportChartSchema = z.object({
         )
         .optional(),
       rows: z.array(z.record(z.string(), z.unknown())).optional(),
+      presentation: z
+        .object({
+          cell_styles: z
+            .array(
+              z.object({
+                row_index: z.number(),
+                column: z.string(),
+                tokens: z.array(z.string()),
+              }),
+            )
+            .optional(),
+          header_groups: z
+            .array(
+              z.object({
+                group_name: z.string(),
+                start_col: z.string(),
+                end_col: z.string(),
+                bg_color: z.string().optional(),
+                font_color: z.string().optional(),
+              }),
+            )
+            .optional(),
+          style_warnings: z
+            .array(
+              z.object({
+                row_index: z.number(),
+                column: z.string(),
+                unknown_tokens: z.array(z.string()),
+              }),
+            )
+            .optional(),
+        })
+        .optional(),
     })
     .nullable()
     .optional(),

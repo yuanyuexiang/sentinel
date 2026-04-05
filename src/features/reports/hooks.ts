@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData } from "@tanstack/react-query";
 import {
   createReport,
   deleteReport,
@@ -44,6 +45,7 @@ export function useSectionDetailQuery(
     queryKey: reportKeys.section(reportKey, chapterKey, sectionKey, filters?.filter1, filters?.filter2),
     queryFn: () => getSectionDetail(reportKey, chapterKey, sectionKey, filters),
     enabled: Boolean(reportKey && chapterKey && sectionKey),
+    placeholderData: keepPreviousData,
   });
 }
 
