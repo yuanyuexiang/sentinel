@@ -1,24 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { AppstoreOutlined, FileSearchOutlined } from "@ant-design/icons";
-import { Layout, Menu, Space, Typography } from "antd";
+import { Layout, Space, Typography } from "antd";
 
-const { Header, Content, Sider } = Layout;
-
-const menuItems = [
-  {
-    key: "/reports",
-    icon: <FileSearchOutlined />,
-    label: <Link href="/reports">报告列表</Link>,
-  },
-  {
-    key: "/reports/upload",
-    icon: <AppstoreOutlined />,
-    label: <Link href="/reports/upload">模板上传</Link>,
-  },
-];
+const { Header, Content } = Layout;
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -28,26 +13,8 @@ export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const currentLabel = getCurrentLabel(pathname);
 
-  const selectedKeys = menuItems
-    .map((item) => item.key)
-    .filter((key) => pathname === key || pathname.startsWith(`${key}/`));
-
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      <Sider width={240} theme="light" style={{ borderRight: "1px solid #dce7ef" }}>
-        <div style={{ padding: "18px 18px 10px 18px" }}>
-          <Typography.Title level={4} style={{ marginBottom: 4, lineHeight: 1.2 }}>
-            BI Report 平台
-          </Typography.Title>
-          <Space size={6}>
-            <AppstoreOutlined style={{ color: "#4b5a67" }} />
-            <Typography.Text type="secondary">管理端</Typography.Text>
-          </Space>
-        </div>
-
-        <Menu mode="inline" selectedKeys={selectedKeys} items={menuItems} style={{ borderInlineEnd: "none" }} />
-      </Sider>
-
       <Layout>
         <Header
           style={{
@@ -63,7 +30,12 @@ export function AppShell({ children }: AppShellProps) {
             paddingBlock: 10,
           }}
         >
-          <Typography.Text type="secondary">当前：{currentLabel}</Typography.Text>
+          <Space size={10}>
+            <Typography.Title level={4} style={{ margin: 0, lineHeight: 1.2 }}>
+              BI Report 平台
+            </Typography.Title>
+            <Typography.Text type="secondary">当前：{currentLabel}</Typography.Text>
+          </Space>
         </Header>
 
         <Content style={{ padding: 20 }}>{children}</Content>
