@@ -179,9 +179,6 @@ function SectionCharts({ reportKey, section }: { reportKey: string; section: Rep
     >
       <Space orientation="vertical" style={{ width: "100%" }}>
         <Space size={[8, 8]} wrap>
-          {typeof chart.meta?.formatter === "string" ? (
-            <Typography.Text type="secondary">formatter: {chart.meta.formatter}</Typography.Text>
-          ) : null}
           {typeof chart.meta?.metric_name === "string" ? (
             <Typography.Text type="secondary">metric: {chart.meta.metric_name}</Typography.Text>
           ) : null}

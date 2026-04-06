@@ -94,6 +94,7 @@ export async function uploadFolder(input: {
   files: File[];
   reportKey: string;
   reportName: string;
+  reportType: "Deals" | "Facilities" | "Tools";
   mode?: "replace" | "append";
   onUploadProgress?: (event: AxiosProgressEvent) => void;
 }): Promise<UploadFolderResult> {
@@ -105,6 +106,7 @@ export async function uploadFolder(input: {
 
   formData.append("report_key", input.reportKey);
   formData.append("report_name", input.reportName);
+  formData.append("report_type", input.reportType);
 
   formData.append("mode", input.mode || "replace");
 

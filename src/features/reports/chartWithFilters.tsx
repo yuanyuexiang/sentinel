@@ -133,15 +133,20 @@ function buildColumnsWithGroups(
   groups: HeaderGroup[],
   cellStyleMap: Map<string, CSSProperties>,
 ): ColumnsType<Record<string, unknown>> {
-  const groupRanges = buildGroupRanges(columns, groups);
+  const visibleColumns = columns.filter((column) => {
+    const key = column.key.trim().toLowerCase();
+    return !key.startsWith("filter");
+  });
+
+  const groupRanges = buildGroupRanges(visibleColumns, groups);
   const groupNameByColumn = new Map<string, string>();
   groupRanges.forEach(({ group, start, end }) => {
     for (let index = start; index <= end; index += 1) {
-      groupNameByColumn.set(columns[index].key, group.group_name);
+      groupNameByColumn.set(visibleColumns[index].key, group.group_name);
     }
   });
 
-  const base = columns.map((column) => ({
+  const base = visibleColumns.map((column) => ({
     title: prettifyColumnTitle(column.key, column.title),
     dataIndex: column.key,
     key: column.key,
@@ -186,19 +191,25 @@ function buildColumnsWithGroups(
         title: (
           <span
             style={{
-              background: bg,
-              color,
-              display: "inline-block",
+              display: "block",
               width: "100%",
               textAlign: "center",
               fontWeight: 700,
-              padding: "8px 0",
+              padding: "4px 0",
             }}
           >
             {group.group_name}
           </span>
         ),
-        onHeaderCell: () => ({ rowSpan: 2 }),
+        onHeaderCell: () => ({
+          rowSpan: 2,
+          style: {
+            padding: 0,
+            background: bg,
+            color,
+            verticalAlign: "middle",
+          },
+        }),
       });
       continue;
     }
@@ -220,16 +231,17 @@ function buildColumnsWithGroups(
           style={{
             background: bg,
             color,
-            display: "inline-block",
+            display: "block",
             width: "100%",
             textAlign: "center",
             fontWeight: 700,
-            padding: "6px 0",
+            padding: "4px 0",
           }}
         >
           {child.title as string}
         </span>
       ),
+      onHeaderCell: () => ({ style: { padding: 0 } }),
     }));
 
     grouped.push({
@@ -239,21 +251,22 @@ function buildColumnsWithGroups(
           style={{
             background: normalizeHeaderColor(group.bg_color),
             color: normalizeHeaderColor(group.font_color),
-            display: "inline-block",
+            display: "block",
             width: "100%",
             textAlign: "center",
             fontWeight: 700,
-            padding: "2px 0",
+            padding: "4px 0",
           }}
         >
           {group.group_name}
         </span>
       ),
+      onHeaderCell: () => ({ style: { padding: 0 } }),
       children: styledChildren,
     });
   }
 
-  columns.forEach((column, index) => {
+  visibleColumns.forEach((column, index) => {
     if (!consumed.has(index)) {
       grouped.push(base[index]);
     }
@@ -289,6 +302,9 @@ function normalizeEchartsOption(option: Record<string, unknown>): Record<string,
 
   series[0] = typedFirst;
   next.series = series;
+  // Keep a single source of truth in series to avoid duplicated annotation rendering.
+  delete next.markArea;
+  delete next.markLine;
   return next;
 }
 

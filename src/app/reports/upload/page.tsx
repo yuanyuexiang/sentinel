@@ -40,6 +40,7 @@ type FormValues = z.infer<typeof schema>;
 type FolderFormValues = {
   reportKey: string;
   reportName: string;
+  reportType: "Deals" | "Facilities" | "Tools";
   mode: "replace" | "append";
 };
 
@@ -249,7 +250,7 @@ export default function ReportUploadPage() {
                   <Form
                     form={folderForm}
                     layout="vertical"
-                    initialValues={{ reportKey: "", reportName: "", mode: "replace" }}
+                    initialValues={{ reportKey: "", reportName: "", reportType: "Deals", mode: "replace" }}
                     onFinish={async (values) => {
                       if (!selectedFolderFiles.length) {
                         messageApi.error("请先选择文件夹");
@@ -274,6 +275,7 @@ export default function ReportUploadPage() {
                           files: selectedFolderFiles,
                           reportKey: normalizedReportKey,
                           reportName: normalizedReportName,
+                          reportType: values.reportType,
                           mode: values.mode,
                           onUploadProgress: (event) => {
                             if (event.total) {
@@ -334,6 +336,20 @@ export default function ReportUploadPage() {
                       ]}
                     >
                       <Input placeholder="2026 Q1 Loan Performance" />
+                    </Form.Item>
+
+                    <Form.Item
+                      label="Report Type"
+                      name="reportType"
+                      rules={[{ required: true, message: "请选择 Report Type" }]}
+                    >
+                      <Radio.Group
+                        options={[
+                          { label: "Deals", value: "Deals" },
+                          { label: "Facilities", value: "Facilities" },
+                          { label: "Tools", value: "Tools" },
+                        ]}
+                      />
                     </Form.Item>
 
                     <Form.Item label="写入模式" name="mode">
