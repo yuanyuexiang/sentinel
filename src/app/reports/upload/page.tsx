@@ -31,6 +31,14 @@ type FolderFormValues = {
   mode: "replace" | "append";
 };
 
+function getFilePath(file: File): string {
+  return file.webkitRelativePath || file.name;
+}
+
+function getFileIdentity(file: File): string {
+  return `${getFilePath(file)}|${file.size}|${file.lastModified}`;
+}
+
 export default function ReportUploadPage() {
   const [messageApi, contextHolder] = message.useMessage();
   const [folderProgress, setFolderProgress] = useState<number>(0);
@@ -47,9 +55,9 @@ export default function ReportUploadPage() {
   const uploadFolderMutation = useUploadFolderMutation();
   const [folderForm] = Form.useForm<FolderFormValues>();
 
-  const folderFileList: UploadFile[] = selectedFolderFiles.map((file, index) => ({
-    uid: `${file.name}-${index}`,
-    name: file.webkitRelativePath || file.name,
+  const folderFileList: UploadFile[] = selectedFolderFiles.map((file) => ({
+    uid: getFileIdentity(file),
+    name: getFilePath(file),
     status: "done",
   }));
 
@@ -230,7 +238,7 @@ export default function ReportUploadPage() {
                             (item, idx) =>
                               casted.findIndex(
                                 (x) =>
-                                  x.name === item.name &&
+                                  getFilePath(x) === getFilePath(item) &&
                                   x.size === item.size &&
                                   x.lastModified === item.lastModified,
                               ) === idx,
@@ -240,7 +248,7 @@ export default function ReportUploadPage() {
                         }}
                         fileList={folderFileList}
                         onRemove={(file) => {
-                          setSelectedFolderFiles((prev) => prev.filter((x) => x.name !== file.name));
+                          setSelectedFolderFiles((prev) => prev.filter((x) => getFilePath(x) !== file.name));
                           return true;
                         }}
                       >
