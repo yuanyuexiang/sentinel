@@ -26,7 +26,35 @@ export default function ReportDetailPage() {
   const deleteMutation = useDeleteReportMutation();
 
   const detail = detailQuery.data;
-  const orderedSections = [...(detail?.sections || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
+  const chapterOrderMap = useMemo(() => {
+    const map = new Map<string, number>();
+    const chapters = [...(detail?.chapters || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
+    chapters.forEach((chapter, index) => {
+      map.set(chapter.chapter_key, index);
+    });
+    return map;
+  }, [detail?.chapters]);
+
+  const orderedSections = useMemo(() => {
+    return [...(detail?.sections || [])].sort((a, b) => {
+      const chapterA = a.chapter_key || "chapter_1";
+      const chapterB = b.chapter_key || "chapter_1";
+
+      const chapterOrderA = chapterOrderMap.get(chapterA) ?? Number.MAX_SAFE_INTEGER;
+      const chapterOrderB = chapterOrderMap.get(chapterB) ?? Number.MAX_SAFE_INTEGER;
+      if (chapterOrderA !== chapterOrderB) {
+        return chapterOrderA - chapterOrderB;
+      }
+
+      const sectionOrderA = a.order || 0;
+      const sectionOrderB = b.order || 0;
+      if (sectionOrderA !== sectionOrderB) {
+        return sectionOrderA - sectionOrderB;
+      }
+
+      return (a.section_key || "").localeCompare(b.section_key || "");
+    });
+  }, [chapterOrderMap, detail?.sections]);
 
   return (
     <>
@@ -110,9 +138,6 @@ export default function ReportDetailPage() {
                     }
                   >
                     <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
-                      <Typography.Text type="secondary">
-                        subtitle: {section.subtitle || "-"}
-                      </Typography.Text>
                       <Typography.Paragraph style={{ margin: 0 }}>
                         {section.content || "(无描述文本)"}
                       </Typography.Paragraph>
