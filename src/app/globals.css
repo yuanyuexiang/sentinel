@@ -48,3 +48,59 @@ h4 {
   font-family: var(--font-ibm-condensed), sans-serif;
   letter-spacing: 0.02em;
 }
+
+.admin-sider .ant-layout-sider-children {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #ffffff;
+}
+
+.admin-sider-brand {
+  margin: 0 12px 10px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #dbeafe;
+  background: linear-gradient(140deg, rgba(59, 130, 246, 0.12), rgba(14, 165, 233, 0.08));
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.admin-sider-brand-logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 13px;
+  color: #05243f;
+  background: linear-gradient(180deg, #bae6fd, #7dd3fc);
+}
+
+.admin-sider-menu .ant-menu-item {
+  margin: 4px 0;
+  border-radius: 10px;
+  color: #38546b;
+}
+
+.admin-sider-menu .ant-menu-item .anticon {
+  color: #3b82f6;
+}
+
+.admin-sider-menu .ant-menu-item-selected {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.18), rgba(14, 165, 233, 0.12));
+  color: #12314f;
+}
+
+.admin-sider-menu .ant-menu-item-selected .anticon {
+  color: #1d4ed8;
+}
+
+.admin-sider-footer {
+  margin-top: auto;
+  padding: 12px;
+  border-top: 1px solid #e6edf5;
+}

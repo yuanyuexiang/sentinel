@@ -39,7 +39,7 @@ export default function NewReportPage() {
         <Form
           form={form}
           layout="vertical"
-          initialValues={{ type: "analytics", status: "active" }}
+          initialValues={{ type: "Deals", status: "active" }}
           onFinish={async (values) => {
             try {
               const data = await createMutation.mutateAsync({
@@ -68,8 +68,15 @@ export default function NewReportPage() {
             <Input placeholder="Report Name" />
           </Form.Item>
 
-          <Form.Item label="type" name="type" rules={[{ required: true, message: "请输入类型" }]}>
-            <Input placeholder="analytics" />
+          <Form.Item label="type" name="type" rules={[{ required: true, message: "请选择类型" }]}>
+            <Select
+              options={[
+                { label: "Deals", value: "Deals" },
+                { label: "Facilities", value: "Facilities" },
+                { label: "Tools", value: "Tools" },
+                { label: "Performance", value: "Performance" },
+              ]}
+            />
           </Form.Item>
 
           <Form.Item label="status" name="status" rules={[{ required: true, message: "请选择状态" }]}>
