@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { Button, Card, Col, Descriptions, Empty, Modal, Row, Space, Typography, message } from "antd";
+import { Button, Card, Col, Empty, Modal, Row, Space, Typography, message } from "antd";
 import { Select } from "antd";
 import { ChartWithFilters } from "@/features/reports/chartWithFilters";
 import {
@@ -35,6 +35,17 @@ export default function ReportDetailPage() {
     return map;
   }, [detail?.chapters]);
 
+  const chapterMetaMap = useMemo(() => {
+    const map = new Map<string, { title: string; order: number }>();
+    (detail?.chapters || []).forEach((chapter, index) => {
+      map.set(chapter.chapter_key, {
+        title: chapter.title || chapter.chapter_key,
+        order: chapter.order || index + 1,
+      });
+    });
+    return map;
+  }, [detail?.chapters]);
+
   const orderedSections = useMemo(() => {
     return [...(detail?.sections || [])].sort((a, b) => {
       const chapterA = a.chapter_key || "chapter_1";
@@ -56,20 +67,44 @@ export default function ReportDetailPage() {
     });
   }, [chapterOrderMap, detail?.sections]);
 
+  const chapterGroups = useMemo(() => {
+    const groups = new Map<string, ReportSection[]>();
+
+    orderedSections.forEach((section) => {
+      const chapterKey = section.chapter_key || "chapter_1";
+      if (!groups.has(chapterKey)) {
+        groups.set(chapterKey, []);
+      }
+      groups.get(chapterKey)?.push(section);
+    });
+
+    return Array.from(groups.entries()).map(([chapterKey, sections]) => {
+      const chapterMeta = chapterMetaMap.get(chapterKey);
+      return {
+        chapterKey,
+        chapterTitle: chapterMeta?.title || chapterKey,
+        chapterOrder: chapterMeta?.order || Number.MAX_SAFE_INTEGER,
+        sections,
+      };
+    });
+  }, [chapterMetaMap, orderedSections]);
+
   return (
     <>
       {contextHolder}
       {modalContextHolder}
       <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
         <Card
-          title="报告详情"
+          title={
+            <Space>
+              <Typography.Text strong>报告内容预览（整页）</Typography.Text>
+              {detail?.name ? <Typography.Text type="secondary">{detail.name}</Typography.Text> : null}
+            </Space>
+          }
           extra={
             <Space>
-              <Link href="/reports">
-                <Button>返回列表</Button>
-              </Link>
               <Link href={`/reports/${reportKey}/edit`}>
-                <Button type="dashed">内容编辑</Button>
+                <Button type="dashed">编辑</Button>
               </Link>
               <Button
                 danger
@@ -100,57 +135,51 @@ export default function ReportDetailPage() {
             </Space>
           }
         >
-          {detailQuery.isLoading ? (
-            <Typography.Text>加载中...</Typography.Text>
-          ) : detail ? (
-            <Descriptions bordered size="small" column={2}>
-              <Descriptions.Item label="id">{detail.id || "-"}</Descriptions.Item>
-              <Descriptions.Item label="report_key">{detail.report_key}</Descriptions.Item>
-              <Descriptions.Item label="name">{detail.name}</Descriptions.Item>
-              <Descriptions.Item label="type">{detail.type}</Descriptions.Item>
-              <Descriptions.Item label="status">{detail.status}</Descriptions.Item>
-              <Descriptions.Item label="updated_at">{detail.updated_at || "-"}</Descriptions.Item>
-              <Descriptions.Item label="published_version">{detail.published_version ?? "-"}</Descriptions.Item>
-            </Descriptions>
-          ) : (
-            <Empty description="暂无数据" />
-          )}
-        </Card>
-
-        <Card title="报告内容预览（整页）">
-          {orderedSections.length ? (
+          {chapterGroups.length ? (
             <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
-              {orderedSections.map((section) => {
-                const charts = section.content_items?.charts || [];
-                const sectionDomKey = `${section.chapter_key || "chapter_1"}-${section.section_key}`;
+              {chapterGroups.map((group) => (
+                <Card
+                  key={group.chapterKey}
+                  type="inner"
+                  title={
+                    <Typography.Text strong>
+                      {group.chapterTitle}
+                    </Typography.Text>
+                  }
+                >
+                  <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
+                    {group.sections.map((section) => {
+                      const charts = section.content_items?.charts || [];
+                      const sectionDomKey = `${group.chapterKey}-${section.section_key}`;
 
-                return (
-                  <Card
-                    key={sectionDomKey}
-                    id={`section-${sectionDomKey}`}
-                    type="inner"
-                    title={
-                      <Space>
-                        <Typography.Text strong>{section.title}</Typography.Text>
-                        <Typography.Text type="secondary">({section.section_key})</Typography.Text>
-                        <Typography.Text type="secondary">order: {section.order || 0}</Typography.Text>
-                      </Space>
-                    }
-                  >
-                    <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
-                      <Typography.Paragraph style={{ margin: 0 }}>
-                        {section.content || "(无描述文本)"}
-                      </Typography.Paragraph>
+                      return (
+                        <Card
+                          key={sectionDomKey}
+                          id={`section-${sectionDomKey}`}
+                          type="inner"
+                          title={
+                            <Space>
+                              <Typography.Text strong>{section.title}</Typography.Text>
+                            </Space>
+                          }
+                        >
+                          <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
+                            <Typography.Paragraph style={{ margin: 0 }}>
+                              {section.content || "(无描述文本)"}
+                            </Typography.Paragraph>
 
-                      {charts.length ? (
-                        <SectionCharts reportKey={reportKey} section={section} />
-                      ) : (
-                        <Empty description="该 section 暂无 charts" />
-                      )}
-                    </Space>
-                  </Card>
-                );
-              })}
+                            {charts.length ? (
+                              <SectionCharts reportKey={reportKey} section={section} />
+                            ) : (
+                              <Empty description="该 section 暂无 charts" />
+                            )}
+                          </Space>
+                        </Card>
+                      );
+                    })}
+                  </Space>
+                </Card>
+              ))}
             </Space>
           ) : (
             <Empty description="该报告暂无 section" />
@@ -197,7 +226,6 @@ function SectionCharts({ reportKey, section }: { reportKey: string; section: Rep
       title={
         <Space>
           <Typography.Text strong>{chart.title}</Typography.Text>
-          <Typography.Text type="secondary">({chart.chart_id})</Typography.Text>
           <Typography.Text type="secondary">{chart.chart_type}</Typography.Text>
         </Space>
       }
