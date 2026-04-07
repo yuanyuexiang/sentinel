@@ -40,7 +40,7 @@ type FormValues = z.infer<typeof schema>;
 type FolderFormValues = {
   reportKey: string;
   reportName: string;
-  reportType: "Deals" | "Facilities" | "Tools";
+  reportType: "Deals" | "Facilities" | "Tools" | "Performance";
   mode: "replace" | "append";
 };
 
@@ -348,6 +348,7 @@ export default function ReportUploadPage() {
                           { label: "Deals", value: "Deals" },
                           { label: "Facilities", value: "Facilities" },
                           { label: "Tools", value: "Tools" },
+                          { label: "Performance", value: "Performance" },
                         ]}
                       />
                     </Form.Item>

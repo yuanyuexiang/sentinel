@@ -94,7 +94,7 @@ export async function uploadFolder(input: {
   files: File[];
   reportKey: string;
   reportName: string;
-  reportType: "Deals" | "Facilities" | "Tools";
+  reportType: "Deals" | "Facilities" | "Tools" | "Performance";
   mode?: "replace" | "append";
   onUploadProgress?: (event: AxiosProgressEvent) => void;
 }): Promise<UploadFolderResult> {
